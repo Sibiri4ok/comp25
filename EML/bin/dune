@@ -1,0 +1,21 @@
+(library
+ (name LL)
+ (public_name eml.LL)
+ (modules LL)
+ (wrapped false)
+ (libraries
+  llvm
+  llvm.analysis
+  ;
+  ))
+
+(executable
+ (public_name eml)
+ (name main)
+ (modules main)
+ (libraries LL)
+ (instrumentation
+  (backend bisect_ppx)))
+
+(cram
+ (deps ./main.exe runtime.c))
