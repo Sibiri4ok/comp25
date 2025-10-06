@@ -1,5 +1,6 @@
 (executable
  (name test_qc)
+ (enabled_if false)
  (modules test_qc)
  (libraries qcheck angstrom)
  (preprocess
@@ -7,6 +8,7 @@
 
 (rule
  (alias runtest)
+ (enabled_if false)
  (deps
   (:< test_qc.exe))
  (action

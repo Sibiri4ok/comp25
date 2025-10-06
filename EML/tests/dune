@@ -1,0 +1,9 @@
+(library
+ (name tests)
+ (libraries EML_lib)
+ (modules :standard)
+ (preprocess
+  (pps ppx_deriving.show ppx_expect))
+ (inline_tests)
+ (instrumentation
+  (backend bisect_ppx)))
