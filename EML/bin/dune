@@ -1,6 +1,6 @@
 (library
  (name LL)
- (public_name eml.LL)
+ (public_name EML.LL)
  (modules LL)
  (wrapped false)
  (libraries
@@ -10,7 +10,7 @@
   ))
 
 (executable
- (public_name eml)
+ (public_name EML)
  (name main)
  (modules main)
  (libraries LL)
@@ -18,4 +18,5 @@
   (backend bisect_ppx)))
 
 (cram
+ (package EML)
  (deps ./main.exe runtime.c))
