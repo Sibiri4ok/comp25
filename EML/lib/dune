@@ -2,7 +2,7 @@
 
 (library
  (name EML_lib)
- (public_name eml.lib)
+ (public_name EML.lib)
  (modules :standard)
  (libraries base angstrom)
  (preprocess
