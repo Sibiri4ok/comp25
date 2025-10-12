@@ -51,8 +51,8 @@ let compile_factorial () =
     COMMENT "Entry point";
     LABEL "_start";
     
-    (* Initialize: n = 5, result = 1, i = 1 *)
-    LI ("a0", 5);        (* n = 5 *)
+    (* Initialize: n = 6, result = 1, i = 1 *)
+    LI ("a0", 6);        (* n = 6 *)
     LI ("t0", 1);        (* result = 1 *)
     LI ("t1", 1);        (* i = 1 *)
     
