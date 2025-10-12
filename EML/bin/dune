@@ -13,7 +13,7 @@
  (public_name EML)
  (name main)
  (modules main)
- (libraries LL)
+ (libraries LL EML_lib)
  (instrumentation
   (backend bisect_ppx)))
 
