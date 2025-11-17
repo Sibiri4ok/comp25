@@ -51,7 +51,6 @@ let%expect_test "001.ml" =
   ]|}]
 ;;
 
-
 let%expect_test "003occurs.ml" =
   parse_and_anf "let fix f = (fun x -> f (fun f -> x x f))  (fun x -> f (fun f -> x x f))";
   [%expect
@@ -116,8 +115,7 @@ let%expect_test "003occurs.ml" =
 ;;
 
 let%expect_test "004let_poly.ml" =
-  parse_and_anf "let temp =
-  (fun f -> (f 1, f true)) (fun x -> x)";
+  parse_and_anf "let temp =\n  (fun f -> (f 1, f true)) (fun x -> x)";
   [%expect
     {|
 [(AnfValue (NonRec,
@@ -164,4 +162,3 @@ let%expect_test "002if.ml" =
       []))
     ]|}]
 ;;
-
