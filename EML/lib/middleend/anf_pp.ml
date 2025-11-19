@@ -1,8 +1,11 @@
-(* Pretty-printer for ANF expressions *)
+(** Copyright 2024-2025, Danil Usoltsev *)
+
+(** SPDX-License-Identifier: LGPL-3.0-or-later *)
+
 open Stdlib.Format
 open Frontend
 open Ast
-open Anf
+open Anf_tree
 
 let pp_ty = Frontend.Ast.pp_ty
 

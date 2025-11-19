@@ -2,8 +2,8 @@
 
 (** SPDX-License-Identifier: LGPL-3.0-or-later *)
 
-open EML_lib.Frontend.Parser
-open EML_lib.Frontend.Ast
+open Emlib.Frontend.Parser
+open Emlib.Frontend.Ast
 
 let parse_test input =
   match parse input with

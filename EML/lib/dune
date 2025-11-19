@@ -1,9 +1,8 @@
 (include_subdirs qualified)
 
 (library
- (name EML_lib)
+ (name emlib)
  (public_name EML.lib)
- (modules :standard)
  (libraries base angstrom)
  (preprocess
   (pps ppx_deriving.show))

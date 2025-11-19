@@ -2,9 +2,11 @@
 
 (** SPDX-License-Identifier: LGPL-3.0-or-later *)
 
-open EML_lib.Frontend.Parser
-open EML_lib.Middleend.Anf
-open EML_lib.Middleend.Anf_pp
+open Emlib.Frontend.Parser
+open Emlib.Middleend
+open Anf
+open Anf_pp
+open Anf_tree
 
 let parse_and_anf input =
   match parse input with

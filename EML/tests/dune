@@ -1,7 +1,6 @@
 (library
  (name tests)
- (libraries EML_lib)
- (modules :standard)
+ (libraries emlib)
  (preprocess
   (pps ppx_deriving.show ppx_expect))
  (inline_tests)

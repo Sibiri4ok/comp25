@@ -2,9 +2,9 @@
 
 (** SPDX-License-Identifier: LGPL-3.0-or-later *)
 
-open EML_lib.Frontend.Inferencer
-open EML_lib.Frontend.Ast
-open EML_lib.Frontend.Parser
+open Emlib.Frontend.Inferencer
+open Emlib.Frontend.Ast
+open Emlib.Frontend.Parser
 
 let pretty_printer_parse_and_infer s =
   match parse s with

@@ -1,3 +1,7 @@
+(** Copyright 2024-2025, Danil Usoltsev *)
+
+(** SPDX-License-Identifier: LGPL-3.0-or-later *)
+
 module ANFMonad = struct
   type 'a t = int -> int * ('a, string) Result.t
 
