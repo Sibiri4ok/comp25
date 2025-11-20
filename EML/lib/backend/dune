@@ -1,0 +1,9 @@
+(include_subdirs no)
+
+(library
+ (name backend)
+ (public_name EML.lib.backend)
+ (libraries base EML_lib)
+ (preprocess
+  (pps ppx_deriving.show))
+ (modules machine riscv))

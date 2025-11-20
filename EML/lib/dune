@@ -3,7 +3,6 @@
 (library
  (name EML_lib)
  (public_name EML.lib)
- (modules :standard)
  (libraries base angstrom)
  (preprocess
   (pps ppx_deriving.show))

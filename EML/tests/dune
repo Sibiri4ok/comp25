@@ -1,6 +1,6 @@
 (library
  (name tests)
- (libraries EML_lib)
+ (libraries EML_lib backend)
  (modules :standard)
  (preprocess
   (pps ppx_deriving.show ppx_expect))
