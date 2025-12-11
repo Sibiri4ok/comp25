@@ -74,24 +74,39 @@ let rec anf (e : expr) (k : immediate -> anf_expr t) : anf_expr t =
            , var_name
            , ComplexBranch (immediate_cond, then_anf, else_anf)
            , cont_expr )))
-  | ExpLet (rec_flag, (pat, e1), _, e2) ->
-    let* e1_anf =
-      anf e1 (fun immediate -> return (AnfExpr (ComplexImmediate immediate)))
+  | ExpLet (rec_flag, first_bind, rest_binds, body) ->
+    let all_binds = first_bind :: rest_binds in
+    let rec process_binds binds k =
+      match binds with
+      | [] -> anf body k
+      | (pat, expr) :: rest ->
+        if is_simple_pattern pat
+        then (
+          match pattern_to_ident pat with
+          | Some name ->
+            let* expr_result =
+              anf expr (fun immediate -> return (AnfExpr (ComplexImmediate immediate)))
+            in
+            let* cexpr =
+              match expr_result with
+              | AnfExpr c -> return c
+              | AnfLet
+                  (_, var_name, c, AnfExpr (ComplexImmediate (ImmediateVar var_name2)))
+                when String.equal var_name var_name2 ->
+                (* let x = c in x --> c *)
+                return c
+              | _ -> fail "Expected complex_expr"
+            in
+            let* body_anf = process_binds rest k in
+            return (optimize_anf_let rec_flag name cexpr body_anf)
+          | None ->
+            let* var_name = fresh in
+            anf expr (fun immediate ->
+              let* body_anf = process_binds rest k in
+              return (AnfLet (NonRec, var_name, ComplexImmediate immediate, body_anf))))
+        else fail "Complex patterns in let bindings not yet supported"
     in
-    let* e2_anf = anf e2 k in
-    let* complex_expr_body =
-      match e1_anf with
-      | AnfExpr c -> return c
-      | _ -> fail "Expected complex_expr"
-    in
-    if is_simple_pattern pat
-    then (
-      match pattern_to_ident pat with
-      | Some name -> return (AnfLet (rec_flag, name, complex_expr_body, e2_anf))
-      | None ->
-        let* var_name = fresh in
-        return (AnfLet (NonRec, var_name, complex_expr_body, e2_anf)))
-    else fail "Complex patterns in let bindings not yet supported"
+    process_binds all_binds k
   | ExpLambda (patterns, body) ->
     let* body_anf =
       anf body (fun immediate -> return (AnfExpr (ComplexImmediate immediate)))
