@@ -114,14 +114,40 @@ let rec anf (e : expr) (k : immediate -> anf_expr t) : anf_expr t =
     let* var_name = fresh in
     let* cont_expr = k (ImmediateVar var_name) in
     return (AnfLet (NonRec, var_name, ComplexLambda (patterns, body_anf), cont_expr))
-  | ExpFunction (func, arg) ->
-    anf func (fun immediate_func ->
-      anf arg (fun immediate_arg ->
-        let* var_name = fresh in
-        let* cont_expr = k (ImmediateVar var_name) in
-        return
-          (AnfLet
-             (NonRec, var_name, ComplexApp (immediate_func, immediate_arg, []), cont_expr))))
+  | ExpFunction _ ->
+    let rec collect_app_chain e acc =
+      match e with
+      | ExpFunction (f, a) -> collect_app_chain f (a :: acc)
+      | _ -> e, acc
+    in
+    let func_expr, args = collect_app_chain e [] in
+    anf func_expr (fun immediate_func ->
+      let rec process_args args_list k_args =
+        match args_list with
+        | [] -> k_args []
+        | arg :: rest ->
+          anf arg (fun immediate_arg ->
+            process_args rest (fun immediates_rest ->
+              k_args (immediate_arg :: immediates_rest)))
+      in
+      process_args args (fun immediates ->
+        match immediates with
+        | [] -> fail "Function application without arguments"
+        | [ single_arg ] ->
+          let* var_name = fresh in
+          let* cont_expr = k (ImmediateVar var_name) in
+          return
+            (AnfLet
+               (NonRec, var_name, ComplexApp (immediate_func, single_arg, []), cont_expr))
+        | first_arg :: rest_args ->
+          let* var_name = fresh in
+          let* cont_expr = k (ImmediateVar var_name) in
+          return
+            (AnfLet
+               ( NonRec
+               , var_name
+               , ComplexApp (immediate_func, first_arg, rest_args)
+               , cont_expr ))))
   | ExpTypeAnnotation (e, _) -> anf e k
 
 and anf_list (exprs : expr list) (k : immediate list -> anf_expr t) : anf_expr t =

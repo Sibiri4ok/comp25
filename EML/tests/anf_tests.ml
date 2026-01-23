@@ -69,59 +69,50 @@ let%expect_test "003occurs.ml" =
     {|
 [(AnfValue (NonRec,
     ("fix",
-     (AnfLet (NonRec, "anf_t11",
+     (AnfLet (NonRec, "anf_t9",
         (ComplexLambda ([(PatVariable "f")],
-           (AnfLet (NonRec, "anf_t4",
+           (AnfLet (NonRec, "anf_t3",
               (ComplexLambda ([(PatVariable "x")],
-                 (AnfLet (NonRec, "anf_t2",
+                 (AnfLet (NonRec, "anf_t1",
                     (ComplexLambda ([(PatVariable "f")],
                        (AnfLet (NonRec, "anf_t0",
                           (ComplexApp ((ImmediateVar "x"),
-                             (ImmediateVar "x"), [])),
-                          (AnfLet (NonRec, "anf_t1",
-                             (ComplexApp ((ImmediateVar "anf_t0"),
-                                (ImmediateVar "f"), [])),
-                             (AnfExpr
-                                (ComplexImmediate (ImmediateVar "anf_t1")))
-                             ))
+                             (ImmediateVar "x"), [(ImmediateVar "f")])),
+                          (AnfExpr (ComplexImmediate (ImmediateVar "anf_t0")))
                           ))
                        )),
-                    (AnfLet (NonRec, "anf_t3",
+                    (AnfLet (NonRec, "anf_t2",
                        (ComplexApp ((ImmediateVar "f"),
-                          (ImmediateVar "anf_t2"), [])),
-                       (AnfExpr (ComplexImmediate (ImmediateVar "anf_t3")))))
+                          (ImmediateVar "anf_t1"), [])),
+                       (AnfExpr (ComplexImmediate (ImmediateVar "anf_t2")))))
                     ))
                  )),
-              (AnfLet (NonRec, "anf_t9",
+              (AnfLet (NonRec, "anf_t7",
                  (ComplexLambda ([(PatVariable "x")],
-                    (AnfLet (NonRec, "anf_t7",
+                    (AnfLet (NonRec, "anf_t5",
                        (ComplexLambda ([(PatVariable "f")],
-                          (AnfLet (NonRec, "anf_t5",
+                          (AnfLet (NonRec, "anf_t4",
                              (ComplexApp ((ImmediateVar "x"),
-                                (ImmediateVar "x"), [])),
-                             (AnfLet (NonRec, "anf_t6",
-                                (ComplexApp ((ImmediateVar "anf_t5"),
-                                   (ImmediateVar "f"), [])),
-                                (AnfExpr
-                                   (ComplexImmediate (ImmediateVar "anf_t6")))
-                                ))
+                                (ImmediateVar "x"), [(ImmediateVar "f")])),
+                             (AnfExpr
+                                (ComplexImmediate (ImmediateVar "anf_t4")))
                              ))
                           )),
-                       (AnfLet (NonRec, "anf_t8",
+                       (AnfLet (NonRec, "anf_t6",
                           (ComplexApp ((ImmediateVar "f"),
-                             (ImmediateVar "anf_t7"), [])),
-                          (AnfExpr (ComplexImmediate (ImmediateVar "anf_t8")))
+                             (ImmediateVar "anf_t5"), [])),
+                          (AnfExpr (ComplexImmediate (ImmediateVar "anf_t6")))
                           ))
                        ))
                     )),
-                 (AnfLet (NonRec, "anf_t10",
-                    (ComplexApp ((ImmediateVar "anf_t4"),
-                       (ImmediateVar "anf_t9"), [])),
-                    (AnfExpr (ComplexImmediate (ImmediateVar "anf_t10")))))
+                 (AnfLet (NonRec, "anf_t8",
+                    (ComplexApp ((ImmediateVar "anf_t3"),
+                       (ImmediateVar "anf_t7"), [])),
+                    (AnfExpr (ComplexImmediate (ImmediateVar "anf_t8")))))
                  ))
               ))
            )),
-        (AnfExpr (ComplexImmediate (ImmediateVar "anf_t11")))))),
+        (AnfExpr (ComplexImmediate (ImmediateVar "anf_t9")))))),
     []))
   ]|}]
 ;;
