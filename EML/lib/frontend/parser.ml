@@ -260,6 +260,23 @@ let parse_expr_let parse_expr =
        (token "in" *> parse_expr)
 ;;
 
+let parse_let_binding parse_expr =
+  token "let"
+  *> lift3
+       (fun rec_flag first_binding and_bindings -> rec_flag, first_binding, and_bindings)
+       (token "rec" *> (take_while1 Char.is_whitespace *> return Rec) <|> return NonRec)
+       (lift2
+          (fun pat expr -> pat, expr)
+          parse_pattern
+          (token "=" *> parse_expr <|> parse_body parse_expr))
+       (many
+          (token "and"
+           *> lift2
+                (fun pat expr -> pat, expr)
+                parse_pattern
+                (token "=" *> parse_expr <|> parse_body parse_expr)))
+;;
+
 let parse_expr =
   fix (fun expr ->
     let term =
@@ -274,40 +291,32 @@ let parse_expr =
     let func = parse_expr_function term in
     let cons = parse_expr_option func <|> func in
     let ife = parse_expr_branch expr <|> cons in
-    let unops = parse_expr_unar_oper ife <|> ife in
+    let let_in = parse_expr_let expr <|> ife in
+    let unops = parse_expr_unar_oper let_in <|> let_in in
     let ops1 = parse_left_associative unops (multiply <|> division) in
     let ops2 = parse_left_associative ops1 (plus <|> minus) in
     let cmp = parse_left_associative ops2 compare in
     let boolean = parse_left_associative cmp (and_op <|> or_op) in
     let tuple = parse_expr_tuple boolean <|> boolean in
     let lambda = parse_expr_lambda expr <|> tuple in
-    choice [ parse_expr_let expr; parse_expr_lambda expr; lambda ])
+    lambda)
 ;;
 
 let parse_structure =
   let parse_eval = parse_expr >>| fun e -> SEval e in
   let parse_value =
-    token "let"
-    *> lift3
-         (fun r id id_list -> SValue (r, id, id_list))
-         (token "rec" *> (take_while1 Char.is_whitespace *> return Rec) <|> return NonRec)
-         (lift2
-            (fun pat expr -> pat, expr)
-            parse_pattern
-            (token "=" *> parse_expr <|> parse_body parse_expr))
-         (many
-            (token "and"
-             *> lift2
-                  (fun pat expr -> pat, expr)
-                  parse_pattern
-                  (token "=" *> parse_expr <|> parse_body parse_expr)))
+    parse_let_binding parse_expr >>| fun (r, id, id_list) -> SValue (r, id, id_list)
   in
-  choice [ parse_eval; parse_value ]
+  choice [ parse_eval; parse_value ] <* white_space
 ;;
 
 let parse_program =
-  let definitions_or_exprs = many parse_structure <* option () (token ";;" >>| ignore) in
-  definitions_or_exprs <* white_space
+  let parse_structure_with_sep =
+    let* structure = parse_structure in
+    let* _ = option () (white_space *> token ";;" *> white_space >>| ignore) in
+    return structure
+  in
+  white_space *> many parse_structure_with_sep <* white_space <* end_of_input
 ;;
 
 let parse input = parse_string ~consume:All parse_program input
