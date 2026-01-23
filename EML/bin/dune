@@ -1,6 +1,6 @@
 (executable
  (public_name EML)
- (name EML)
+ (name main)
  (libraries emlib)
  (instrumentation
   (backend bisect_ppx)))
