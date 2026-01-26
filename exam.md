@@ -26,3 +26,8 @@
 <!--
 1. Символьное исполнение. Задачи и сложности. Concolic подход на примере. [слайды](https://docs.google.com/presentation/d/1XX7EH2cGL4DuZOfcc0fAmEWe4ogiEYry1fNhrCn1Q_0)
 -->
+
+##### TODO 2026
+* Придумать входной тест
+* Указать избранные вопросы с предыдущи курсов-prerequisites.
+* 
