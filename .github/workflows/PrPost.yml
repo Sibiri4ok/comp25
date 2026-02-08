@@ -255,6 +255,8 @@ jobs:
             _docs/percent.txt \
             text.md
 
+      - run: echo "" >> text.md
+      - run: cat _docs/achievements.md >> text.md
       - run: cat text.md
 
       # - name: Find Comment

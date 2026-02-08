@@ -1,0 +1,19 @@
+(library
+ (name MiddleTest)
+ (libraries base stdio Ast Parser Pprinter Inferencer Middle)
+ (preprocess
+  (pps ppx_expect ppx_deriving.show))
+ (inline_tests)
+ (instrumentation
+  (backend bisect_ppx)))
+
+(cram
+ (applies_to anf)
+ (deps
+  ../../../bin/AML.exe
+  ./manytests/typed/010faccps_ll.ml
+  ./manytests/typed/010fibcps_ll.ml
+  ./manytests/typed/010fac_anf.ml
+  ./manytests/typed/012faccps.ml
+  ./manytests/typed/012fibcps.ml
+  ./manytests/typed/004manyargs.ml))

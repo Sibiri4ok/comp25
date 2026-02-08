@@ -1,0 +1,64 @@
+(library
+ (name tests)
+ (inline_tests)
+ (libraries PudgeWithMoML)
+ (modules)
+ (preprocess
+  (pps ppx_expect)))
+
+(executable
+ (name run_qcheck)
+ (modules run_qcheck)
+ (libraries PudgeWithMoML qcheck-core.runner))
+
+(cram
+ (applies_to qcheck)
+ (deps ./run_qcheck.exe))
+
+(cram
+ (applies_to not_typed_parse)
+ (deps
+  ../bin/compiler.exe
+  (glob_files manytests/do_not_type/*.ml)))
+
+(cram
+ (applies_to typed_parse)
+ (deps
+  ../bin/compiler.exe
+  (glob_files manytests/typed/*.ml)))
+
+(cram
+ (applies_to not_typed_typecheck)
+ (deps
+  ../bin/compiler.exe
+  (glob_files manytests/do_not_type/*.ml)))
+
+(cram
+ (applies_to typed_typecheck)
+ (deps
+  ../bin/compiler.exe
+  (glob_files manytests/typed/*.ml)))
+
+(cram
+ (applies_to parser)
+ (deps ../bin/compiler.exe))
+
+(cram
+ (applies_to anf)
+ (deps
+  ../bin/compiler.exe
+  (glob_files ../lib/runtime/*)))
+
+(cram
+ (applies_to codegen)
+ (deps
+  ../bin/compiler.exe
+  ../Makefile
+  (glob_files ../lib/runtime/*)))
+
+(cram
+ (applies_to GC)
+ (deps
+  ../bin/compiler.exe
+  ../Makefile
+  (glob_files ../lib/runtime/*)))

@@ -1,0 +1,10 @@
+(cram
+ (applies_to many_args_test)
+ (deps
+  ../../../bin/omlet.exe
+  ../../../lib/runtime.c
+  ../../../lib/gc.c
+  ../../../lib/gc.h
+  ../../../lib/callf.s
+  ../build_and_run.sh
+  ../../manytests/typed/004manyargs.ml))

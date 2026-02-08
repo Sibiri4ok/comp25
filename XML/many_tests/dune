@@ -1,0 +1,47 @@
+(library
+ (name XML_manytests)
+ (public_name XML.Many_tests)
+ (libraries
+  stdio
+  XML.Backend
+  XML.Common
+  qcheck-core
+  qcheck-core.runner
+  ppx_deriving_qcheck)
+ (preprocess
+  (pps ppx_expect ppx_deriving_qcheck))
+ (instrumentation
+  (backend bisect_ppx))
+ (inline_tests))
+
+(cram
+ (applies_to codegen anf cc ll gc)
+ (deps
+  ../bin/XML.exe
+  ../bin/runtime.c
+  manytests/do_not_type/001.ml
+  manytests/do_not_type/002if.ml
+  manytests/do_not_type/003occurs.ml
+  manytests/do_not_type/004let_poly.ml
+  manytests/do_not_type/015tuples.ml
+  manytests/do_not_type/099.ml
+  manytests/typed/001fac.ml
+  manytests/typed/002fac.ml
+  manytests/typed/003fib.ml
+  manytests/typed/004manyargs.ml
+  manytests/typed/005fix.ml
+  manytests/typed/006partial.ml
+  manytests/typed/006partial2.ml
+  manytests/typed/006partial3.ml
+  manytests/typed/007order.ml
+  manytests/typed/008ascription.ml
+  manytests/typed/009let_poly.ml
+  manytests/typed/010fac_anf.ml
+  manytests/typed/010faccps_ll.ml
+  manytests/typed/010fibcps_ll.ml
+  manytests/typed/010sukharev.ml
+  manytests/typed/011mapcps.ml
+  manytests/typed/012fibcps.ml
+  manytests/typed/013foldfoldr.ml
+  manytests/typed/015tuples.ml
+  manytests/typed/016lists.ml))

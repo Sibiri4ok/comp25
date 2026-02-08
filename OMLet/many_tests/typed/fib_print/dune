@@ -1,0 +1,14 @@
+(cram
+ (applies_to fib_print_test)
+ (deps
+  ../../../bin/omlet.exe
+  fib_print.ml
+  ../../../lib/runtime.c
+  ../../../lib/gc.c
+  ../../../lib/gc.h
+  ../../../lib/callf.s
+  ../build_and_run.sh))
+
+(cram
+ (applies_to fib_anf_test)
+ (deps ../../../bin/omlet.exe fib_print.ml))

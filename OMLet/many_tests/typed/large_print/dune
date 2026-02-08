@@ -1,0 +1,14 @@
+(cram
+ (applies_to large_print_test)
+ (deps
+  ../../../bin/omlet.exe
+  large_print.ml
+  ../../../lib/runtime.c
+  ../../../lib/gc.c
+  ../../../lib/gc.h
+  ../../../lib/callf.s
+  ../build_and_run.sh))
+
+(cram
+ (applies_to large_anf_test)
+ (deps ../../../bin/omlet.exe large_print.ml))
