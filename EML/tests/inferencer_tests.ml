@@ -15,7 +15,7 @@ let pretty_printer_parse_and_infer s =
          Base.Map.filter_keys env ~f:(fun key ->
            not (List.mem key [ "print_int"; "print_endline"; "print_bool" ]))
        in
-       Base.Map.iteri filtered_env ~f:(fun ~key ~data:(S (_, ty)) ->
+       Base.Map.iteri filtered_env ~f:(fun ~key ~data:(Scheme.Scheme (_, ty)) ->
          Format.printf "val %s: %a\n" key pp_ty ty)
      | Error e -> Format.printf "Infer error. %a\n" pp_error e)
   | Error e -> Format.printf "Parsing error. %s\n" e

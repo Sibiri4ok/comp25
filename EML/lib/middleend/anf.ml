@@ -68,7 +68,8 @@ let rec pp_immediate fmt = function
     (match c with
      | ConstInt n -> fprintf fmt "%d" n
      | ConstBool b -> fprintf fmt "%b" b
-     | ConstString s -> fprintf fmt "\"%s\"" s)
+     | ConstString s -> fprintf fmt "\"%s\"" s
+     | ConstChar ch -> fprintf fmt "'%s'" (Char.escaped ch))
   | ImmediateVar x -> fprintf fmt "%s" x
 
 and pp_complex_expr fmt = function
@@ -129,7 +130,8 @@ and pp_complex_expr fmt = function
         (match c with
          | ConstInt n -> fprintf fmt "%d" n
          | ConstBool b -> fprintf fmt "%b" b
-         | ConstString s -> fprintf fmt "\"%s\"" s)
+         | ConstString s -> fprintf fmt "\"%s\"" s
+         | ConstChar ch -> fprintf fmt "'%s'" (Char.escaped ch))
       | PatTuple (p1, p2, rest) ->
         let all_pats = p1 :: p2 :: rest in
         fprintf
@@ -148,6 +150,10 @@ and pp_complex_expr fmt = function
           pats
       | PatOption None -> fprintf fmt "None"
       | PatOption (Some p) -> fprintf fmt "Some %a" pp_pattern p
+      | PatConstruct (name, opt) ->
+        (match opt with
+         | None -> fprintf fmt "%s" name
+         | Some p -> fprintf fmt "%s %a" name pp_pattern p)
     in
     fprintf
       fmt
@@ -285,21 +291,48 @@ let rec anf (e : expr) (k : immediate -> anf_expr t) : anf_expr t =
         let* var_name = fresh in
         return (AnfLet (NonRec, var_name, complex_expr_body, e2_anf)))
     else fail "Complex patterns in let bindings not yet supported"
-  | ExpLambda (patterns, body) ->
+  | ExpLambda (pat, pats, body) ->
+    let patterns = pat :: pats in
     let* body_anf =
       anf body (fun immediate -> return (AnfExpr (ComplexImmediate immediate)))
     in
     let* var_name = fresh in
     let* cont_expr = k (ImmediateVar var_name) in
     return (AnfLet (NonRec, var_name, ComplexLambda (patterns, body_anf), cont_expr))
-  | ExpFunction (func, arg) ->
-    anf func (fun immediate_func ->
-      anf arg (fun immediate_arg ->
+  | ExpFunction ((pat, body), rest_cases) ->
+    (match rest_cases with
+     | [] ->
+       let patterns = [ pat ] in
+       let* body_anf =
+         anf body (fun immediate -> return (AnfExpr (ComplexImmediate immediate)))
+       in
+       let* var_name = fresh in
+       let* cont_expr = k (ImmediateVar var_name) in
+       return (AnfLet (NonRec, var_name, ComplexLambda (patterns, body_anf), cont_expr))
+     | _ -> fail "ExpFunction: multiple cases not yet supported")
+  | ExpApply (func, arg) ->
+    anf func (fun imm_f ->
+      anf arg (fun imm_arg ->
         let* var_name = fresh in
         let* cont_expr = k (ImmediateVar var_name) in
         return
           (AnfLet
-             (NonRec, var_name, ComplexApp (immediate_func, immediate_arg, []), cont_expr))))
+             (NonRec, var_name, ComplexApp (imm_f, imm_arg, []), cont_expr))))
+  | ExpMatch _ -> fail "ExpMatch not yet supported"
+  | ExpConstruct (name, opt_expr) ->
+    (match name, opt_expr with
+     | "None", None ->
+       let* var_name = fresh in
+       let* cont_expr = k (ImmediateVar var_name) in
+       return (AnfLet (NonRec, var_name, ComplexOption None, cont_expr))
+     | "Some", Some e ->
+       anf e (fun immediate ->
+         let* var_name = fresh in
+         let* cont_expr = k (ImmediateVar var_name) in
+         return
+           (AnfLet
+              (NonRec, var_name, ComplexOption (Some immediate), cont_expr)))
+     | _ -> fail "ExpConstruct: only None/Some supported")
   | ExpTypeAnnotation (e, _) -> anf e k
 
 and anf_list (exprs : expr list) (k : immediate list -> anf_expr t) : anf_expr t =
