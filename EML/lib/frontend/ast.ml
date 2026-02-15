@@ -35,12 +35,13 @@ type const =
   | ConstInt of int (* Integer constant: Example - [21] *)
   | ConstBool of bool (* Boolean constant: Example - [true] or [false] *)
   | ConstString of string (* String constant: Example - "I like OCaml!" *)
+  | ConstChar of char (* Character constant: Example - ['a'] *)
 [@@deriving show { with_path = false }]
 
 type binder = int [@@deriving show { with_path = false }]
 
 type ty =
-  | TyVar of binder
+  | TyVar of ident
   | TyPrim of string
   | TyArrow of ty * ty
   | TyList of ty
@@ -57,6 +58,7 @@ type pattern =
   | PatUnit
   | PatList of pattern list
   | PatOption of pattern option
+  | PatConstruct of ident * pattern option
 [@@deriving show { with_path = false }]
 
 type expr =
@@ -67,11 +69,14 @@ type expr =
   | ExpUnarOper of unar_oper * expr (* ExpUnarOper(not, x)*)
   | ExpTuple of expr * expr * expr list (* ExpTuple[x1; x2 .. xn] *)
   | ExpList of expr list (* ExpList[x1; x2 .. xn] *)
-  | ExpLambda of pattern list * expr (* ExpLambda([x;y;z], x+y+z)*)
+  | ExpLambda of pattern * pattern list * expr
   | ExpTypeAnnotation of expr * ty
   | ExpLet of is_rec * bind * bind list * expr
-  | ExpFunction of expr * expr (* ExpFunction(x, y)*)
+  | ExpApply of expr * expr
   | ExpOption of expr option
+  | ExpFunction of bind * bind list
+  | ExpMatch of expr * bind * bind list
+  | ExpConstruct of ident * expr option
 [@@deriving show { with_path = false }]
 
 and bind = pattern * expr [@@deriving show { with_path = false }]
@@ -83,9 +88,15 @@ type structure =
 
 type program = structure list [@@deriving show { with_path = false }]
 
+let bin_op_list = [ "*"; "/"; "+"; "-"; "^"; ">="; "<="; "<>"; "="; ">"; "<"; "&&"; "||" ]
+let is_bin_op op = List.mem op bin_op_list
+let is_operator opr = List.exists (fun s -> String.equal s opr) bin_op_list
+let is_unary_minus op = op = "~-"
+
+
 let rec pp_ty fmt = function
   | TyPrim x -> fprintf fmt "%s" x
-  | TyVar x -> fprintf fmt "'%d" x
+  | TyVar x -> fprintf fmt "%s" x
   | TyArrow (l, r) ->
     (match l, r with
      | TyArrow _, _ -> fprintf fmt "(%a) -> %a" pp_ty l pp_ty r

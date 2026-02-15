@@ -11,7 +11,8 @@ let rec pp_immediate fmt = function
     (match c with
      | ConstInt n -> fprintf fmt "%d" n
      | ConstBool b -> fprintf fmt "%b" b
-     | ConstString s -> fprintf fmt "\"%s\"" s)
+     | ConstString s -> fprintf fmt "\"%s\"" s
+     | ConstChar ch -> fprintf fmt "'%s'" (Char.escaped ch))
   | ImmediateVar x -> fprintf fmt "%s" x
 
 and pp_complex_expr fmt = function
@@ -72,7 +73,8 @@ and pp_complex_expr fmt = function
         (match c with
          | ConstInt n -> fprintf fmt "%d" n
          | ConstBool b -> fprintf fmt "%b" b
-         | ConstString s -> fprintf fmt "\"%s\"" s)
+         | ConstString s -> fprintf fmt "\"%s\"" s
+         | ConstChar ch -> fprintf fmt "'%s'" (Char.escaped ch))
       | PatTuple (p1, p2, rest) ->
         let all_pats = p1 :: p2 :: rest in
         fprintf
@@ -91,6 +93,10 @@ and pp_complex_expr fmt = function
           pats
       | PatOption None -> fprintf fmt "None"
       | PatOption (Some p) -> fprintf fmt "Some %a" pp_pattern p
+      | PatConstruct (name, opt) ->
+        (match opt with
+         | None -> fprintf fmt "%s" name
+         | Some p -> fprintf fmt "%s %a" name pp_pattern p)
     in
     fprintf
       fmt

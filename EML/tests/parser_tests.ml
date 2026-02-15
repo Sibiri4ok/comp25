@@ -25,7 +25,7 @@ let main = fac 4 |};
     {|
       [(SValue (Rec,
           ((PatVariable "fac"),
-           (ExpLambda ([(PatVariable "n")],
+           (ExpLambda ((PatVariable "n"), [],
               (ExpBranch (
                  (ExpBinOper (LowestEqual, (ExpIdent "n"), (ExpConst (ConstInt 1))
                     )),
@@ -37,7 +37,7 @@ let main = fac 4 |};
                           [],
                           (ExpLet (NonRec,
                              ((PatVariable "m"),
-                              (ExpFunction ((ExpIdent "fac"), (ExpIdent "n1")))),
+                              (ExpApply ((ExpIdent "fac"), (ExpIdent "n1")))),
                              [],
                              (ExpBinOper (Multiply, (ExpIdent "n"), (ExpIdent "m")
                                 ))
@@ -48,7 +48,7 @@ let main = fac 4 |};
           []));
         (SValue (NonRec,
            ((PatVariable "main"),
-            (ExpFunction ((ExpIdent "fac"), (ExpConst (ConstInt 4))))),
+            (ExpApply ((ExpIdent "fac"), (ExpConst (ConstInt 4))))),
            []))
         ]
 |}]
