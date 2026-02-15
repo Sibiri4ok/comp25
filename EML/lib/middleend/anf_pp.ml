@@ -17,6 +17,8 @@ let rec pp_immediate fmt = function
 
 and pp_complex_expr fmt = function
   | ComplexImmediate imm -> pp_immediate fmt imm
+  | ComplexUnit -> fprintf fmt "()"
+  | ComplexField (imm, i) -> fprintf fmt "%a.%d" pp_immediate imm i
   | ComplexBinOper (op, e1, e2) ->
     let op_str =
       match op with
