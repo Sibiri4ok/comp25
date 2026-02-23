@@ -29,7 +29,7 @@ let%expect_test "001.ml" =
   [%expect
     {|
 [(AnfValue (NonRec,
-    ("recfac",
+    ("recfac", 1,
      (AnfExpr
         (ComplexLambda ([(PatVariable "n")],
            (AnfLet (NonRec, "anf_t0",
@@ -61,45 +61,40 @@ let%expect_test "003occurs.ml" =
   [%expect
     {|
 [(AnfValue (NonRec,
-    ("fix",
+    ("fix", 1,
      (AnfExpr
         (ComplexLambda ([(PatVariable "f")],
-           (AnfExpr
+           (AnfLet (NonRec, "anf_t3",
               (ComplexLambda ([(PatVariable "x")],
-                 (AnfExpr
+                 (AnfLet (NonRec, "anf_t1",
                     (ComplexLambda ([(PatVariable "f")],
-                       (AnfLet (NonRec, "anf_t1",
+                       (AnfExpr
                           (ComplexApp ((ImmediateVar "x"),
-                             (ImmediateVar "x"), [(ImmediateVar "f")])),
-                          (AnfLet (NonRec, "anf_t3",
-                             (ComplexApp ((ImmediateVar "f"),
-                                (ImmediateVar "anf_t1"), [])),
-                             (AnfExpr
-                                (ComplexLambda ([(PatVariable "x")],
-                                   (AnfExpr
-                                      (ComplexLambda ([(PatVariable "f")],
-                                         (AnfLet (NonRec, "anf_t5",
-                                            (ComplexApp ((ImmediateVar "x"),
-                                               (ImmediateVar "x"),
-                                               [(ImmediateVar "f")])),
-                                            (AnfLet (NonRec, "anf_t7",
-                                               (ComplexApp (
-                                                  (ImmediateVar "f"),
-                                                  (ImmediateVar "anf_t5"),
-                                                  [])),
-                                               (AnfExpr
-                                                  (ComplexApp (
-                                                     (ImmediateVar "anf_t3"),
-                                                     (ImmediateVar "anf_t7"),
-                                                     [])))
-                                               ))
-                                            ))
-                                         )))
-                                   )))
-                             ))
-                          ))
-                       )))
-                 )))
+                             (ImmediateVar "x"), [(ImmediateVar "f")])))
+                       )),
+                    (AnfExpr
+                       (ComplexApp ((ImmediateVar "f"),
+                          (ImmediateVar "anf_t1"), [])))
+                    ))
+                 )),
+              (AnfLet (NonRec, "anf_t7",
+                 (ComplexLambda ([(PatVariable "x")],
+                    (AnfLet (NonRec, "anf_t5",
+                       (ComplexLambda ([(PatVariable "f")],
+                          (AnfExpr
+                             (ComplexApp ((ImmediateVar "x"),
+                                (ImmediateVar "x"), [(ImmediateVar "f")])))
+                          )),
+                       (AnfExpr
+                          (ComplexApp ((ImmediateVar "f"),
+                             (ImmediateVar "anf_t5"), [])))
+                       ))
+                    )),
+                 (AnfExpr
+                    (ComplexApp ((ImmediateVar "anf_t3"),
+                       (ImmediateVar "anf_t7"), [])))
+                 ))
+              ))
            )))),
     []))
   ]|}]
@@ -110,8 +105,8 @@ let%expect_test "004let_poly.ml" =
   [%expect
     {|
 [(AnfValue (NonRec,
-    ("temp",
-     (AnfExpr
+    ("temp", 0,
+     (AnfLet (NonRec, "anf_t3",
         (ComplexLambda ([(PatVariable "f")],
            (AnfLet (NonRec, "anf_t0",
               (ComplexApp ((ImmediateVar "f"), (ImmediateConst (ConstInt 1)),
@@ -119,22 +114,20 @@ let%expect_test "004let_poly.ml" =
               (AnfLet (NonRec, "anf_t1",
                  (ComplexApp ((ImmediateVar "f"),
                     (ImmediateConst (ConstBool true)), [])),
-                 (AnfLet (NonRec, "anf_t3",
+                 (AnfExpr
                     (ComplexTuple ((ImmediateVar "anf_t0"),
-                       (ImmediateVar "anf_t1"), [])),
-                    (AnfExpr
-                       (ComplexLambda ([(PatVariable "x")],
-                          (AnfLet (NonRec, "anf_t4",
-                             (ComplexImmediate (ImmediateVar "x")),
-                             (AnfExpr
-                                (ComplexApp ((ImmediateVar "anf_t3"),
-                                   (ImmediateVar "anf_t4"), [])))
-                             ))
-                          )))
-                    ))
+                       (ImmediateVar "anf_t1"), [])))
                  ))
               ))
-           )))),
+           )),
+        (AnfLet (NonRec, "anf_t4",
+           (ComplexLambda ([(PatVariable "x")],
+              (AnfExpr (ComplexImmediate (ImmediateVar "x"))))),
+           (AnfExpr
+              (ComplexApp ((ImmediateVar "anf_t3"), (ImmediateVar "anf_t4"),
+                 [])))
+           ))
+        ))),
     []))
   ]|}]
 ;;
@@ -144,7 +137,7 @@ let%expect_test "002if.ml" =
   [%expect
     {|
   [(AnfValue (NonRec,
-      ("main",
+      ("main", 0,
        (AnfExpr
           (ComplexBranch ((ImmediateConst (ConstBool true)),
              (AnfExpr (ComplexImmediate (ImmediateConst (ConstInt 1)))),
