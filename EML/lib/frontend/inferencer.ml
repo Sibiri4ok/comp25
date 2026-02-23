@@ -351,6 +351,7 @@ let infer_binop_type = function
 
 let rec infer_expr env = function
   | ExpConst const -> return (Substitution.empty, infer_const const)
+  | ExpUnit -> return (Substitution.empty, TyPrim "unit")
   | ExpIdent var ->
     (match TypeEnv.find env var with
      | Some scheme ->

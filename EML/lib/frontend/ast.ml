@@ -72,6 +72,7 @@ type expr =
   | ExpLet of is_rec * bind * bind list * expr
   | ExpFunction of expr * expr (* ExpFunction(x, y)*)
   | ExpOption of expr option
+  | ExpUnit (* () *)
 [@@deriving show { with_path = false }]
 
 and bind = pattern * expr [@@deriving show { with_path = false }]

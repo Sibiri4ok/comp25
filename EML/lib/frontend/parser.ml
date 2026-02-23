@@ -182,6 +182,7 @@ let and_op = parse_expr_bin_oper And "&&"
 let or_op = parse_expr_bin_oper Or "||"
 let parse_expr_ident = parse_ident >>| fun x -> ExpIdent x
 let parse_expr_const = parse_const >>| fun c -> ExpConst c
+let parse_expr_unit = token "()" *> return ExpUnit
 
 let parse_expr_with_type parse_expr =
   let parse_annotated_type = token ":" *> parse_type in
@@ -264,7 +265,8 @@ let parse_expr =
   fix (fun expr ->
     let term =
       choice
-        [ parse_expr_ident
+        [ parse_expr_unit
+        ; parse_expr_ident
         ; parse_expr_const
         ; parse_expr_list expr
         ; parse_parens expr
