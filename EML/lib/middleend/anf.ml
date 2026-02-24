@@ -8,30 +8,9 @@
 
 open Frontend.Ast
 open Base
+open Util.Monads.ANFMonad
+open Util.Monads.ANFMonad.Syntax
 
-module ANFMonad = struct
-  type 'a t = int -> int * ('a, string) Result.t
-
-  let return x = fun counter -> counter, Ok x
-
-  let ( >>= ) m f =
-    fun counter ->
-    match m counter with
-    | counter', Ok a -> f a counter'
-    | counter', Error e -> counter', Error e
-  ;;
-
-  let fresh : string t = fun counter -> counter + 1, Ok ("anf_t" ^ Int.to_string counter)
-  let run m = m 0 |> snd
-  let fail msg = fun counter -> counter, Error msg
-
-  module Syntax = struct
-    let ( let* ) = ( >>= )
-  end
-end
-
-open ANFMonad
-open ANFMonad.Syntax
 type immediate =
   | ImmediateConst of const
   | ImmediateVar of ident
@@ -65,16 +44,12 @@ type anf_structure =
 
 type anf_program = anf_structure list [@@deriving show { with_path = false }]
 
-
-
-
 let optimize_anf_let (is_rec, name1, expr, body) =
   match is_rec, body with
   | NonRec, AnfExpr (ComplexImmediate (ImmediateVar name2)) when String.equal name1 name2
     -> AnfExpr expr
   | _, AnfLet (is_rec', orig_name, ComplexImmediate (ImmediateVar name2), body')
-    when String.equal name1 name2
-    -> AnfLet (is_rec', orig_name, expr, body')
+    when String.equal name1 name2 -> AnfLet (is_rec', orig_name, expr, body')
   | _ -> AnfLet (is_rec, name1, expr, body)
 ;;
 
@@ -86,36 +61,47 @@ let bind_complex_expr complex_expr k =
 
 let get_var = function
   | PatVariable id -> return id
-  | _ -> fresh 
+  | _ -> fresh
 ;;
 
-let rec destructure_tuple_pat tuple_var indices_pats empty nested_empty add 
-  =
+let rec destructure_tuple_pat tuple_var indices_pats empty nested_empty add =
   match indices_pats with
   | [] -> return empty
   | (i, pat) :: rest ->
     let* var = get_var pat in
     let* rest_result = destructure_tuple_pat tuple_var rest empty nested_empty add in
     let* inner_result =
-      (match pat with
-       | PatTuple (ip1, ip2, irest) ->
-         destructure_tuple_pat var
-           (List.mapi (ip1 :: ip2 :: irest) ~f:(fun j p -> j, p))
-           (nested_empty rest_result)
-           nested_empty add
-       | _ -> return (nested_empty rest_result))
+      match pat with
+      | PatTuple (ip1, ip2, irest) ->
+        destructure_tuple_pat
+          var
+          (List.mapi (ip1 :: ip2 :: irest) ~f:(fun j p -> j, p))
+          (nested_empty rest_result)
+          nested_empty
+          add
+      | _ -> return (nested_empty rest_result)
     in
     return (add var i tuple_var inner_result rest_result)
 ;;
 
 let build_tuple_lets tuple_var indices_pats body =
-  destructure_tuple_pat tuple_var indices_pats body (fun x -> x) (fun bind_id i tv inner _rest ->
-    AnfLet (NonRec, bind_id, ComplexField (ImmediateVar tv, i), inner))
+  destructure_tuple_pat
+    tuple_var
+    indices_pats
+    body
+    (fun x -> x)
+    (fun bind_id i tv inner _rest ->
+       AnfLet (NonRec, bind_id, ComplexField (ImmediateVar tv, i), inner))
 ;;
 
-let build_tuple_top_level_bindings tuple_var indices_pats = 
-  destructure_tuple_pat tuple_var indices_pats [] (fun _ -> []) (fun bind_id i tv inner rest ->
-    (bind_id, AnfExpr (ComplexField (ImmediateVar tv, i))) :: inner @ rest)
+let build_tuple_top_level_bindings tuple_var indices_pats =
+  destructure_tuple_pat
+    tuple_var
+    indices_pats
+    []
+    (fun _ -> [])
+    (fun bind_id i tv inner rest ->
+       ((bind_id, AnfExpr (ComplexField (ImmediateVar tv, i))) :: inner) @ rest)
 ;;
 
 let rec anf (expr : expr) (k : immediate -> anf_expr t) : anf_expr t =
@@ -123,23 +109,22 @@ let rec anf (expr : expr) (k : immediate -> anf_expr t) : anf_expr t =
   | ExpConst c -> k (ImmediateConst c)
   | ExpIdent x -> k (ImmediateVar x)
   | ExpUnarOper (op, expr) ->
-    anf expr (fun imm ->
-      bind_complex_expr (ComplexUnarOper (op, imm)) k)
+    anf expr (fun imm -> bind_complex_expr (ComplexUnarOper (op, imm)) k)
   | ExpBinOper (op, exp1, exp2) ->
     anf exp1 (fun imm1 ->
-      anf exp2 (fun imm2 ->
-        bind_complex_expr (ComplexBinOper (op, imm1, imm2)) k))
-  
+      anf exp2 (fun imm2 -> bind_complex_expr (ComplexBinOper (op, imm1, imm2)) k))
   | ExpBranch (cond, then_exp, else_exp_opt) ->
     anf cond (fun imm_cond ->
-      let* then_aexp = anf then_exp (fun imm -> return (AnfExpr (ComplexImmediate imm))) in
+      let* then_aexp =
+        anf then_exp (fun imm -> return (AnfExpr (ComplexImmediate imm)))
+      in
       let* else_aexp =
         match else_exp_opt with
         | None -> return (AnfExpr ComplexUnit)
-        | Some else_exp -> anf else_exp (fun imm -> return (AnfExpr (ComplexImmediate imm)))
+        | Some else_exp ->
+          anf else_exp (fun imm -> return (AnfExpr (ComplexImmediate imm)))
       in
       bind_complex_expr (ComplexBranch (imm_cond, then_aexp, else_aexp)) k)
-        
   | ExpLet (flag, (pat, expr), _, body) ->
     (match pat with
      | PatAny | PatConstruct ("()", None) -> anf expr (fun _ -> anf body k)
@@ -158,7 +143,6 @@ let rec anf (expr : expr) (k : immediate -> anf_expr t) : anf_expr t =
          let* var = get_var pat in
          return (AnfLet (flag, var, ComplexImmediate imm, body_anf_expr)))
      | _ -> fail "Complex patterns in let not supported")
-
   | ExpApply (exp1, exp2) ->
     let func, args_list =
       let rec collect_args acc = function
@@ -169,40 +153,43 @@ let rec anf (expr : expr) (k : immediate -> anf_expr t) : anf_expr t =
     in
     anf func (fun immediate_func ->
       anf_list args_list (function
-        | arg1 :: arg_tl -> bind_complex_expr (ComplexApp (immediate_func, arg1, arg_tl)) k
+        | arg1 :: arg_tl ->
+          bind_complex_expr (ComplexApp (immediate_func, arg1, arg_tl)) k
         | [] -> fail "application with no arguments"))
   | ExpTuple (exp1, exp2, exp_list) ->
     let all_exprs = exp1 :: exp2 :: exp_list in
     anf_list all_exprs (fun imm_list ->
       match imm_list with
-      | imm1 :: imm2 :: rest ->
-        bind_complex_expr (ComplexTuple (imm1, imm2, rest)) k
+      | imm1 :: imm2 :: rest -> bind_complex_expr (ComplexTuple (imm1, imm2, rest)) k
       | _ -> fail "Invalid tuple")
   | ExpLambda (pat, pat_list, body) ->
     let params = pat :: pat_list in
-    let* body_anf_expr = anf body (fun imm -> bind_complex_expr (ComplexImmediate imm) k) in
+    let* body_anf_expr =
+      anf body (fun imm -> bind_complex_expr (ComplexImmediate imm) k)
+    in
     let rec wrap_params current_body = function
       | [] -> return current_body
-      | (PatVariable _ | PatConst _) as param :: remaining_params ->
+      | ((PatVariable _ | PatConst _) as param) :: remaining_params ->
         let* body_with_rest = wrap_params current_body remaining_params in
         return (AnfExpr (ComplexLambda ([ param ], body_with_rest)))
       | PatTuple (p1, p2, rest_pats) :: remaining_params ->
         let* body_with_rest = wrap_params current_body remaining_params in
         let* var = fresh in
         let* body_with_tuple_destructured =
-          build_tuple_lets var
+          build_tuple_lets
+            var
             (List.mapi (p1 :: p2 :: rest_pats) ~f:(fun i p -> i, p))
             body_with_rest
         in
-        return (AnfExpr (ComplexLambda ([ PatVariable var ], body_with_tuple_destructured)))
+        return
+          (AnfExpr (ComplexLambda ([ PatVariable var ], body_with_tuple_destructured)))
       | _ -> fail "Only variable, constant and tuple patterns in lambda"
     in
     wrap_params body_anf_expr params
   | ExpConstruct ("()", None) -> bind_complex_expr ComplexUnit k
   | ExpTypeAnnotation (e, _) -> anf e k
   | ExpList exprs ->
-    anf_list exprs (fun imm_list ->
-      bind_complex_expr (ComplexList imm_list) k)
+    anf_list exprs (fun imm_list -> bind_complex_expr (ComplexList imm_list) k)
   | ExpOption None -> bind_complex_expr ComplexUnit k
   | ExpOption (Some e) -> anf e k
   | _ -> fail "Exp: Not implemented"
@@ -233,7 +220,8 @@ let anf_structure_item (item : structure) : anf_structure list t =
       | PatTuple (p1, p2, rest) ->
         let* tuple_var = fresh in
         let* component_bindings =
-          build_tuple_top_level_bindings tuple_var
+          build_tuple_top_level_bindings
+            tuple_var
             (List.mapi (p1 :: p2 :: rest) ~f:(fun i p -> i, p))
         in
         let one_value (id, e) = AnfValue (NonRec, (id, e), []) in
@@ -255,3 +243,4 @@ let anf_program (program : program) : (anf_program, string) Result.t =
       return (acc_list @ item_anf))
   in
   ANFMonad.run program'
+;;
