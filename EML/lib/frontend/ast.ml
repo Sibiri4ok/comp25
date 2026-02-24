@@ -93,7 +93,6 @@ let is_bin_op op = List.mem op bin_op_list
 let is_operator opr = List.exists (fun s -> String.equal s opr) bin_op_list
 let is_unary_minus op = op = "~-"
 
-
 let rec pp_ty fmt = function
   | TyPrim x -> fprintf fmt "%s" x
   | TyVar x -> fprintf fmt "%s" x

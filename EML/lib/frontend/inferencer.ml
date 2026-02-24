@@ -555,9 +555,7 @@ let rec infer_expr env = function
     let* subst2, ty_arg = infer_expr (TypeEnv.apply subst1 env) arg in
     let* tv = fresh_var in
     let* subst3 =
-      Substitution.unify
-        (Substitution.apply subst2 ty_func)
-        (TyArrow (ty_arg, tv))
+      Substitution.unify (Substitution.apply subst2 ty_func) (TyArrow (ty_arg, tv))
     in
     let* total_subst = Substitution.compose_all [ subst3; subst2; subst1 ] in
     return (total_subst, Substitution.apply total_subst tv)
@@ -613,19 +611,15 @@ let rec infer_expr env = function
               ty_pat
           in
           let* sub_comp = Substitution.compose sub_u sub_pat in
-          let* sub_expr, ty_branch =
-            infer_expr (TypeEnv.apply sub_comp env_pat) expr'
-          in
-          let* sub_total =
-            Substitution.compose_all [ sub_expr; sub_comp; sub_acc ]
-          in
+          let* sub_expr, ty_branch = infer_expr (TypeEnv.apply sub_comp env_pat) expr' in
+          let* sub_total = Substitution.compose_all [ sub_expr; sub_comp; sub_acc ] in
           let ty_branch' = Substitution.apply sub_total ty_branch in
-          (match ty_res_opt with
-           | None -> return (sub_total, Some ty_branch')
-           | Some ty_prev ->
-             let* sub_merge = Substitution.unify ty_prev ty_branch' in
-             let* sub_final = Substitution.compose sub_total sub_merge in
-             return (sub_final, Some (Substitution.apply sub_merge ty_prev))))
+          match ty_res_opt with
+          | None -> return (sub_total, Some ty_branch')
+          | Some ty_prev ->
+            let* sub_merge = Substitution.unify ty_prev ty_branch' in
+            let* sub_final = Substitution.compose sub_total sub_merge in
+            return (sub_final, Some (Substitution.apply sub_merge ty_prev)))
     in
     (match ty_res with
      | Some t -> return (final_subst, t)
