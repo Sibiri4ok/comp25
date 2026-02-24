@@ -138,7 +138,7 @@ let rec anf (expr : expr) (k : immediate -> anf_expr t) : anf_expr t =
       bind_complex_expr (ComplexBranch (imm_cond, then_aexp, else_aexp)) k)
   | ExpLet (flag, (pat, expr), _, body) ->
     (match pat with
-     | PatAny | PatConstruct ("()", None) -> anf expr (fun _ -> anf body k)
+     | PatAny | PatUnit | PatConstruct ("()", None) -> anf expr (fun _ -> anf body k)
      | PatTuple (p1, p2, rest) ->
        let pats = p1 :: p2 :: rest in
        anf expr (fun tuple_imm ->
@@ -175,9 +175,7 @@ let rec anf (expr : expr) (k : immediate -> anf_expr t) : anf_expr t =
       | _ -> fail "Invalid tuple")
   | ExpLambda (pat, pat_list, body) ->
     let params = pat :: pat_list in
-    let* body_anf_expr =
-      anf body (fun imm -> bind_complex_expr (ComplexImmediate imm) k)
-    in
+    let* body_anf_expr = anf body (fun imm -> return (AnfExpr (ComplexImmediate imm))) in
     let rec wrap_params current_body = function
       | [] -> return current_body
       | ((PatVariable _ | PatConst _) as param) :: remaining_params ->
@@ -196,14 +194,19 @@ let rec anf (expr : expr) (k : immediate -> anf_expr t) : anf_expr t =
           (AnfExpr (ComplexLambda ([ PatVariable var ], body_with_tuple_destructured)))
       | _ -> fail "Only variable, constant and tuple patterns in lambda"
     in
-    wrap_params body_anf_expr params
+    let* lambda_anf = wrap_params body_anf_expr params in
+    (match lambda_anf with
+     | AnfExpr (ComplexLambda (pats, body)) ->
+       bind_complex_expr (ComplexLambda (pats, body)) k
+     | _ -> fail "ExpLambda: wrap_params must return ComplexLambda")
   | ExpConstruct ("()", None) -> bind_complex_expr ComplexUnit k
   | ExpTypeAnnotation (e, _) -> anf e k
   | ExpList exprs ->
     anf_list exprs (fun imm_list -> bind_complex_expr (ComplexList imm_list) k)
   | ExpOption None -> bind_complex_expr ComplexUnit k
   | ExpOption (Some e) -> anf e k
-  | _ -> fail "Exp: Not implemented"
+  | ExpFunction _ | ExpMatch _ -> fail "Match/function cases not implemented"
+  | ExpConstruct _ -> fail "Constructors not implemented"
 
 and anf_list (exprs : expr list) (k : immediate list -> anf_expr t) : anf_expr t =
   match exprs with
@@ -212,6 +215,8 @@ and anf_list (exprs : expr list) (k : immediate list -> anf_expr t) : anf_expr t
     anf hd (fun immediate_hd ->
       anf_list tl (fun immediate_tl -> k (immediate_hd :: immediate_tl)))
 ;;
+
+let to_fun_bind (id, e) = id, anf_expr_arity e, e
 
 let anf_structure_item (item : structure) : anf_structure list t =
   match item with
@@ -235,20 +240,20 @@ let anf_structure_item (item : structure) : anf_structure list t =
             tuple_var
             (List.mapi (p1 :: p2 :: rest) ~f:(fun i p -> i, p))
         in
-        let one_value (id, e) = AnfValue (NonRec, (id, e), []) in
+        let one_value (id, e) = AnfValue (NonRec, to_fun_bind (id, e), []) in
         let new_items =
-          AnfValue (rec_flag, (tuple_var, anf_expr_body), [])
+          AnfValue (rec_flag, to_fun_bind (tuple_var, anf_expr_body), [])
           :: List.map component_bindings ~f:one_value
         in
         return (acc_list @ new_items)
       | _ ->
         let* var = get_var pat in
-        return (acc_list @ [ AnfValue (rec_flag, (var, anf_expr_body), []) ]))
+        return (acc_list @ [ AnfValue (rec_flag, to_fun_bind (var, anf_expr_body), []) ]))
 ;;
 
-let anf_program (program : program) : (anf_program, string) Result.t =
+let anf_program (ast : program) : (anf_program, string) Result.t =
   let program' =
-    List.fold_left program ~init:(return []) ~f:(fun acc item ->
+    List.fold_left ast ~init:(return []) ~f:(fun acc item ->
       let* acc_list = acc in
       let* item_anf = anf_structure_item item in
       return (acc_list @ item_anf))

@@ -129,6 +129,7 @@ and pp_anf_expr fmt = function
   | AnfExpr e -> pp_complex_expr fmt e
 
 and pp_anf_bind fmt (name, expr) = fprintf fmt "%s = %a" name pp_anf_expr expr
+and pp_anf_fun_bind fmt (name, _arity, expr) = fprintf fmt "%s = %a" name pp_anf_expr expr
 
 and pp_anf_structure fmt = function
   | AnfEval expr -> fprintf fmt "%a" pp_anf_expr expr
@@ -143,7 +144,7 @@ and pp_anf_structure fmt = function
       fmt
       "let %s%a"
       rec_flag
-      (pp_print_list ~pp_sep:(fun fmt () -> fprintf fmt "@ and ") pp_anf_bind)
+      (pp_print_list ~pp_sep:(fun fmt () -> fprintf fmt "@ and ") pp_anf_fun_bind)
       all_binds
 
 and pp_anf_program fmt program =
