@@ -35,14 +35,25 @@ and anf_expr =
   | AnfExpr of complex_expr
 [@@deriving show { with_path = false }]
 
+type arity = int
+
+let pp_arity ppf (n : arity) = Stdlib.Format.pp_print_int ppf n
+
 type anf_bind = ident * anf_expr [@@deriving show { with_path = false }]
+type anf_fun_bind = ident * arity * anf_expr [@@deriving show { with_path = false }]
 
 type anf_structure =
   | AnfEval of anf_expr
-  | AnfValue of is_rec * anf_bind * anf_bind list
+  | AnfValue of is_rec * anf_fun_bind * anf_fun_bind list
 [@@deriving show { with_path = false }]
 
 type anf_program = anf_structure list [@@deriving show { with_path = false }]
+
+let rec anf_expr_arity = function
+  | AnfExpr (ComplexLambda (pat_list, body)) -> List.length pat_list + anf_expr_arity body
+  | AnfLet (_, _, _, body) -> anf_expr_arity body
+  | _ -> 0
+;;
 
 let optimize_anf_let (is_rec, name1, expr, body) =
   match is_rec, body with
@@ -242,5 +253,5 @@ let anf_program (program : program) : (anf_program, string) Result.t =
       let* item_anf = anf_structure_item item in
       return (acc_list @ item_anf))
   in
-  ANFMonad.run program'
+  run program'
 ;;
