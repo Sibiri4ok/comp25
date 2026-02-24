@@ -1,3 +1,5 @@
+open Base
+
 module ANFMonad = struct
   type 'a t = int -> int * ('a, string) Result.t
 
