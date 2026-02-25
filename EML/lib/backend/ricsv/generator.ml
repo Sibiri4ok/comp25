@@ -181,10 +181,26 @@ let gen_direct_call dst fname args spilled =
 ;;
 
 let gen_via_apply_nargs dst fname nargs args spilled =
-  let* () = gen_imm (List.nth_exn arg_regs 0) (ImmediateVar fname) in
-  let* () = append (li (List.nth_exn arg_regs 1) nargs) in
-  let regs = List.drop arg_regs 2 in
-  gen_call_with_regs dst regs args spilled "apply_nargs"
+  let argv_bytes = nargs * word_size in
+  let* () = gen_imm a0 (ImmediateVar fname) in
+  let* () = append (li a1 nargs) in
+  let* () = append (addi sp sp (-argv_bytes)) in
+  let* () =
+    List.foldi args ~init:(return ()) ~f:(fun i acc arg ->
+      let* () = acc in
+      let offset = i * word_size in
+      let src =
+        match Map.find spilled i with
+        | Some loc -> load_into_reg t0 loc
+        | None -> gen_imm t0 arg
+      in
+      let* () = src in
+      append (sd t0 (sp, offset)))
+  in
+  let* () = append (mv a2 sp) in
+  let* () = append (call "eml_applyN") in
+  let* () = copy_result_to dst in
+  append (addi sp sp argv_bytes)
 ;;
 
 let rec gen_invocation dst fname args =
@@ -220,7 +236,6 @@ and gen_curried_call dst fname _arity first_args rest_args =
     (ComplexApp (ImmediateVar part_name, List.hd_exn rest_args, List.tl_exn rest_args))
 
 and gen_unit dst = append (li dst (tag_int 0))
-and gen_imm dst imm = gen_imm dst imm
 
 and gen_neg dst op =
   let* () = gen_imm t0 op in
