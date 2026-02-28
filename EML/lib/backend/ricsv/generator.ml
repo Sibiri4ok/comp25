@@ -176,7 +176,12 @@ let load_imm dst = function
        let* state = get in
        (match Map.find state.arity_map name with
         | Some 0 -> append (call name)
-        | _ -> fail ("unbound variable: " ^ name)))
+        | Some arity ->
+          let* () = append (la result_reg name) in
+          let* () = append (li (List.nth_exn arg_regs 1) arity) in
+          let* () = append (call "alloc_closure") in
+          if equal_reg dst result_reg then return () else append (mv dst result_reg)
+        | None -> fail ("unbound variable: " ^ name)))
 ;;
 
 let copy_result_to dst =
@@ -233,19 +238,18 @@ let push_stack_args ~gen_immediate stack_args =
 
 type call_style =
   | Nullary of string
-  | Direct of
-      { fname : string
-      ; args : immediate list
-      }
+  | Direct of { fname : string; args : immediate list }
+  | Via_closure of { fname : string; nargs : int; args : immediate list }
 
+(** Classify how to call fname with the given args.
+    - Nullary: zero-arg function called with unit sentinel
+    - Direct: known function with exact arity match
+    - Via_closure: partial/over application or unknown — use alloc_closure + eml_applyN *)
 let classify_call ~nargs ~callee_arity_opt ~fname ~args =
   match callee_arity_opt with
   | Some 0 when nargs = 1 -> return (Nullary fname)
   | Some arity when nargs = arity -> return (Direct { fname; args })
-  | Some arity when nargs <> arity ->
-    fail
-      (Printf.sprintf "call %s: arity mismatch (expected %d args, got %d)" fname arity nargs)
-  | _ -> fail ("call " ^ fname ^ ": unknown function or wrong arity")
+  | _ -> return (Via_closure { fname; nargs; args })
 ;;
 
 let gen_call_with_regs dst regs args spilled symbol =
@@ -266,21 +270,67 @@ let gen_direct_call dst fname args spilled =
   gen_call_with_regs dst arg_regs args spilled fname
 ;;
 
+(** Push all args onto the stack and call eml_applyN(closure_in_a0, argc, sp).
+    Signature: eml_applyN(closure*, int64_t argc, void** argv)
+    Precondition: closure pointer is in result_reg (a0) on entry. *)
+let gen_apply_via_stack dst argc args =
+  (* Save closure pointer: push it on stack temporarily *)
+  let* () = append (addi sp sp (-word_size)) in
+  let* () = append (sd result_reg (sp, 0)) in
+  (* Allocate stack space for argv array *)
+  let stack_bytes = argc * word_size in
+  let* () = append (addi sp sp (-stack_bytes)) in
+  (* Store each arg into the argv array *)
+  let* () =
+    List.foldi args ~init:(return ()) ~f:(fun i acc arg ->
+      let* () = acc in
+      let offset = i * word_size in
+      let* () = load_imm t0 arg in
+      append (sd t0 (sp, offset)))
+  in
+  (* Restore closure pointer into a0 *)
+  let* () = append (ld result_reg (sp, stack_bytes)) in
+  (* a1 = argc, a2 = argv pointer (= sp) *)
+  let* () = append (li (List.nth_exn arg_regs 1) argc) in
+  let* () = append (mv (List.nth_exn arg_regs 2) sp) in
+  let* () = append (call "eml_applyN") in
+  let* () = copy_result_to dst in
+  (* Free argv array + the saved closure slot *)
+  append (addi sp sp (stack_bytes + word_size))
+;;
+
+(** Call fname via eml_applyN: first alloc a closure then apply args to it.
+    [fname_arity] is the real declared arity of fname (passed to alloc_closure).
+    [nargs] is how many args we are applying right now. *)
+let gen_via_apply dst fname fname_arity nargs args =
+  let* () = append (la result_reg fname) in
+  let* () = append (li (List.nth_exn arg_regs 1) fname_arity) in
+  let* () = append (call "alloc_closure") in
+  gen_apply_via_stack dst nargs args
+;;
+
 let rec gen_invocation dst fname args =
   let* () = gen_save_caller_regs in
   let* state = get in
-  let* spilled =
-    spill_dangerous_args
-      ~gen_immediate:load_imm
-      state
-      args
-  in
+  let* env = get_env in
   let nargs = List.length args in
   let callee_arity_opt = Map.find state.arity_map fname in
   let* style = classify_call ~nargs ~callee_arity_opt ~fname ~args in
   match style with
   | Nullary name -> gen_nullary dst name
-  | Direct { fname = fn; args = a } -> gen_direct_call dst fn a spilled
+  | Direct { fname = fn; args = a } ->
+    let* spilled = spill_dangerous_args ~gen_immediate:load_imm state a in
+    gen_direct_call dst fn a spilled
+  | Via_closure { fname = fn; nargs = n; args = a } ->
+    (match Map.find env fn with
+     | Some loc ->
+       (* fn is already a closure value in env: load it into a0, then apply *)
+       let* () = gen_load_reg_into result_reg loc in
+       gen_apply_via_stack dst n a
+     | None ->
+       (* fn is a top-level function: allocate fresh closure with its real arity, then apply *)
+       let fname_arity = Option.value (Map.find state.arity_map fn) ~default:n in
+       gen_via_apply dst fn fname_arity n a)
 
 and gen_unit dst = append (li dst (tag_int 0))
 and gen_imm dst imm = load_imm dst imm
@@ -335,7 +385,13 @@ and gen_cexpr dst = function
   | ComplexBranch (cond, then_e, else_e) -> gen_branch dst cond then_e else_e
   | ComplexField _ | ComplexTuple _ -> fail "Tuple not supported"
   | ComplexApp (ImmediateVar name, first, rest) -> gen_app dst name first rest
-  | ComplexApp (_, _, _) -> fail "ComplexApp: function must be a variable"
+  | ComplexApp (closure_imm, first, rest) ->
+    (* Calling a closure value: load it into a0, put args on stack, call eml_applyN *)
+    let args = first :: rest in
+    let nargs = List.length args in
+    let* () = gen_save_caller_regs in
+    let* () = load_imm result_reg closure_imm in
+    gen_apply_via_stack dst nargs args
   | ComplexLambda _ | ComplexList _ | ComplexOption _ ->
     fail "gen_cexpr: Lambda/List/Option not implemented"
 

@@ -7,5 +7,9 @@
 type prim = { name : string; arity : int }
 
 let base_arities : prim list =
-  [ { name = "print_int"; arity = 1 }; { name = "print_endline"; arity = 1 } ]
+  [ { name = "print_int"; arity = 1 }
+  ; { name = "print_endline"; arity = 1 }
+  ; { name = "alloc_closure"; arity = 2 }
+  ; { name = "eml_applyN"; arity = 3 }
+  ]
 ;;
