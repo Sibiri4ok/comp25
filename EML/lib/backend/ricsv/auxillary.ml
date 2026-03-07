@@ -2,33 +2,46 @@
 
 (** SPDX-License-Identifier: LGPL-3.0-or-later *)
 
-open Base
-open Frontend.Ast
-open Architecture.Riscv_backend
 open Middleend.Anf
+open Architecture
+open Riscv_backend
+open Generator_state
+open Frontend.Ast
+
+let is_caller_saved = function
+  | A _ | T _ -> true
+  | Zero | RA | SP | S _ -> false
+;;
+
+let to_tagged_bool dst = add dst dst dst @ add_tag_items dst 1
 
 let compare_ordering dst r1 r2 ~invert =
   let base = slt dst r1 r2 in
-  if invert then base @ xori dst dst 1 else base
+  let tagged = if invert then base @ xori dst dst 1 else base in
+  tagged @ to_tagged_bool dst
 ;;
 
 let compare_eq_ne dst r1 r2 ~is_eq =
   let base = xor dst r1 r2 in
-  if is_eq then base @ seqz dst dst else base @ snez dst dst
+  let tagged = if is_eq then base @ seqz dst dst else base @ snez dst dst in
+  tagged @ to_tagged_bool dst
 ;;
 
-let bin_op dst op r1 r2 =
+let bin_op dst op r1 r2 : (instr list, string) result =
   match op with
-  | "+" -> add dst r1 r2 @ add_tag_items dst (-1)
-  | "-" -> sub dst r1 r2 @ add_tag_items dst 1
-  | "*" -> srli r1 r1 1 @ addi r2 r2 (-1) @ mul dst r1 r2 @ add_tag_items dst 1
-  | "<" -> compare_ordering dst r1 r2 ~invert:false
-  | ">" -> compare_ordering dst r2 r1 ~invert:false
-  | "<=" -> compare_ordering dst r2 r1 ~invert:true
-  | ">=" -> compare_ordering dst r1 r2 ~invert:true
-  | "=" -> compare_eq_ne dst r1 r2 ~is_eq:true
-  | "<>" -> compare_eq_ne dst r1 r2 ~is_eq:false
-  | _ -> failwith ("unsupported binary operator: " ^ op)
+  | "+" -> Ok (add dst r1 r2 @ add_tag_items dst (-1))
+  | "-" -> Ok (sub dst r1 r2 @ add_tag_items dst 1)
+  | "*" -> Ok (srli r1 r1 1 @ addi r2 r2 (-1) @ mul dst r1 r2 @ add_tag_items dst 1)
+  | "/" ->
+    Ok
+      (srli r1 r1 1 @ srli r2 r2 1 @ div dst r1 r2 @ add dst dst dst @ add_tag_items dst 1)
+  | "<" -> Ok (compare_ordering dst r1 r2 ~invert:false)
+  | ">" -> Ok (compare_ordering dst r2 r1 ~invert:false)
+  | "<=" -> Ok (compare_ordering dst r2 r1 ~invert:true)
+  | ">=" -> Ok (compare_ordering dst r1 r2 ~invert:true)
+  | "=" -> Ok (compare_eq_ne dst r1 r2 ~is_eq:true)
+  | "<>" -> Ok (compare_eq_ne dst r1 r2 ~is_eq:false)
+  | _ -> Error ("unsupported binary operator: " ^ op)
 ;;
 
 let bin_oper_to_string = function
@@ -47,11 +60,25 @@ let bin_oper_to_string = function
 ;;
 
 let vars_in_caller_saved_regs env =
-  Map.to_alist env
-  |> List.filter_map ~f:(fun (name, loc) ->
+  Base.Map.to_alist env
+  |> List.filter_map (fun (name, loc) ->
     match loc with
     | Loc_reg r when is_caller_saved r -> Some (name, r)
     | _ -> None)
+;;
+
+let indices_of_args_to_spill state exps =
+  let is_rewrites_result_regs state = function
+    | ImmediateConst _ -> false
+    | ImmediateVar id -> Base.Map.mem state.arity_map id
+  in
+  List.rev
+    (snd
+       (List.fold_left
+          (fun (i, acc) arg ->
+             i + 1, if is_rewrites_result_regs state arg then i :: acc else acc)
+          (0, [])
+          exps))
 ;;
 
 type call_style =
@@ -79,8 +106,8 @@ let classify_call ~nargs ~callee_arity_opt ~fname ~args : call_style =
     Curry_chain
       { fname
       ; arity
-      ; first_args = List.take args arity
-      ; rest_args = List.drop args arity
+      ; first_args = Base.List.take args arity
+      ; rest_args = Base.List.drop args arity
       }
   | Some arity when nargs = arity -> Direct { fname; args }
   | _ -> Via_apply_nargs { fname; nargs; args }

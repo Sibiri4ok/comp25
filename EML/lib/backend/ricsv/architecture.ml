@@ -2,9 +2,7 @@
 
 (** SPDX-License-Identifier: LGPL-3.0-or-later *)
 
-(** RISC-V: ISA, platform config, and codegen API in one module. *)
-
-open Base
+open Format
 
 module Riscv_backend = struct
   type reg =
@@ -17,10 +15,6 @@ module Riscv_backend = struct
   [@@deriving eq]
 
   type offset = reg * int
-
-  type location =
-    | Loc_reg of reg
-    | Loc_mem of offset
 
   type instr =
     | Addi of reg * reg * int (* сложение с константой: rd = rs + imm *)
@@ -44,11 +38,10 @@ module Riscv_backend = struct
     | Xori of reg * reg * int (* xor регистра с константой: rd = rs ^ imm *)
     | Xor of reg * reg * reg (* xor двух регистров: rd = rs1 ^ rs2 *)
     | Mul of reg * reg * reg (* умножение: rd = rs1 * rs2 *)
+    | Div of reg * reg * reg (* целочисленное деление: rd = rs1 / rs2 *)
     | Srli of reg * reg * int (* логический сдвиг вправо на константу: rd = rs >>> imm *)
 
-  let pp_reg ppf =
-    let open Stdlib.Format in
-    function
+  let pp_reg ppf = function
     | Zero -> fprintf ppf "zero"
     | RA -> fprintf ppf "ra"
     | SP -> fprintf ppf "sp"
@@ -58,17 +51,14 @@ module Riscv_backend = struct
     | S n -> fprintf ppf "s%d" n
   ;;
 
-  let pp_offset ppf offset =
-    Stdlib.Format.fprintf ppf "%d(%a)" (snd offset) pp_reg (fst offset)
-  ;;
+  let pp_offset ppf offset = fprintf ppf "%d(%a)" (snd offset) pp_reg (fst offset)
 
-  let pp_instr ppf =
-    let open Stdlib.Format in
-    function
+  let pp_instr ppf = function
     | Addi (rd, rs, imm) -> fprintf ppf "addi %a, %a, %d" pp_reg rd pp_reg rs imm
     | Add (rd, rs1, rs2) -> fprintf ppf "add %a, %a, %a" pp_reg rd pp_reg rs1 pp_reg rs2
     | Sub (rd, rs1, rs2) -> fprintf ppf "sub %a, %a, %a" pp_reg rd pp_reg rs1 pp_reg rs2
     | Mul (rd, rs1, rs2) -> fprintf ppf "mul %a, %a, %a" pp_reg rd pp_reg rs1 pp_reg rs2
+    | Div (rd, rs1, rs2) -> fprintf ppf "div %a, %a, %a" pp_reg rd pp_reg rs1 pp_reg rs2
     | Srli (rd, rs1, imm) -> fprintf ppf "srli %a, %a, %d" pp_reg rd pp_reg rs1 imm
     | Xori (rd, rs1, imm) -> fprintf ppf "xori %a, %a, %d" pp_reg rd pp_reg rs1 imm
     | Xor (rd, rs1, rs2) -> fprintf ppf "xor %a, %a, %a" pp_reg rd pp_reg rs1 pp_reg rs2
@@ -102,23 +92,7 @@ module Riscv_backend = struct
   let a7 = A 7
   let t0 = T 0
   let t1 = T 1
-
-  (* ----- Platform (RISC-V layout) ----- *)
-  let arg_regs = [ a0; a1; a2; a3; a4; a5; a6; a7 ]
-  let candidate_regs_for_spill = arg_regs
-  let arg_regs_count = 8
-  let word_size = 8
-  let frame_header_size = 2 * word_size
-  let saved_fp_offset = 0
-  let saved_ra_offset = word_size
   let result_reg = a0
-
-  let is_caller_saved = function
-    | A _ | T _ -> true
-    | Zero | RA | SP | S _ -> false
-  ;;
-
-  (* *)
   let addi rd rs imm = [ Addi (rd, rs, imm) ]
   let ld rd ofs = [ Ld (rd, ofs) ]
   let sd rs ofs = [ Sd (rs, ofs) ]
@@ -138,8 +112,23 @@ module Riscv_backend = struct
   let xori rd rs imm = [ Xori (rd, rs, imm) ]
   let xor rd rs1 rs2 = [ Xor (rd, rs1, rs2) ]
   let mul rd rs1 rs2 = [ Mul (rd, rs1, rs2) ]
+  let div rd rs1 rs2 = [ Div (rd, rs1, rs2) ]
   let srli rd rs imm = [ Srli (rd, rs, imm) ]
   let add_tag_items dst delta = [ Addi (dst, dst, delta) ]
+  let arg_regs = [ a0; a1; a2; a3; a4; a5; a6; a7 ]
+  let candidate_regs_for_spill = arg_regs
+  let arg_regs_count = 8
+  let word_size = 8
+
+  (* RISC-V ABI: stack must be 16-byte aligned at call boundaries *)
+  let stack_align = 16
+  let frame_header_size = 2 * word_size
+  let saved_fp_offset = 0
+  let saved_ra_offset = word_size
+
+  type location =
+    | Loc_reg of reg
+    | Loc_mem of offset
 
   let prologue ~name ~stack_size =
     let ra_slot = sp, stack_size - saved_ra_offset in
@@ -165,8 +154,8 @@ module Riscv_backend = struct
 
   let format_item ppf i =
     (match i with
-     | Label _ -> Stdlib.Format.fprintf ppf "%a" pp_instr i
-     | _ -> Stdlib.Format.fprintf ppf "  %a" pp_instr i);
-    Stdlib.Format.fprintf ppf "\n"
+     | Label _ -> fprintf ppf "%a" pp_instr i
+     | _ -> fprintf ppf "  %a" pp_instr i);
+    fprintf ppf "\n"
   ;;
 end

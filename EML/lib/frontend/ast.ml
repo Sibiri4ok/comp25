@@ -89,6 +89,7 @@ type structure =
 type program = structure list [@@deriving show { with_path = false }]
 
 let bin_op_list = [ "*"; "/"; "+"; "-"; "^"; ">="; "<="; "<>"; "="; ">"; "<"; "&&"; "||" ]
+let unary_op_list = [ "~-" ]
 let is_bin_op op = List.mem op bin_op_list
 let is_operator opr = List.exists (fun s -> String.equal s opr) bin_op_list
 let is_unary_minus op = op = "~-"

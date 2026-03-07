@@ -2,66 +2,92 @@
 
 (** SPDX-License-Identifier: LGPL-3.0-or-later *)
 
-open Base
-open Frontend.Ast
-open Architecture.Riscv_backend
+open Architecture
+open Riscv_backend
 
-type env = (ident, location, String.comparator_witness) Map.t
+module type NAMING = sig
+  type t
 
-type state =
-  { frame_offset : int
-  ; fresh_id : int
-  ; arity_map : (ident, int, String.comparator_witness) Map.t
-  ; env : env
-  ; instr_buffer : instr list
-  }
+  val init : t
+  val fresh_partial : t -> string * t
+  val fresh_branch : t -> (string * string) * t
+end
 
-type 'a t = state -> ('a * state, string) Result.t
+module Default_naming : NAMING = struct
+  type t = int
 
-let return x st = Ok (x, st)
-let fail e = fun _ -> Error e
+  let init = 0
+  let fresh_partial n = "part_" ^ string_of_int n, n + 1
+  let fresh_branch n = ("else_" ^ string_of_int n, "end_" ^ string_of_int n), n + 1
+end
 
-let bind m f =
-  fun state ->
-  match m state with
-  | Ok (x, st') -> f x st'
-  | Error e -> Error e
-;;
+module Make (N : NAMING) = struct
+  type env = (string, location, Base.String.comparator_witness) Base.Map.t
 
-let ( let* ) = bind
-let get st = Ok (st, st)
-let put st = fun _ -> Ok ((), st)
+  type state =
+    { frame_offset : int
+    ; naming_state : N.t
+    ; arity_map : (string, int, Base.String.comparator_witness) Base.Map.t
+    ; env : env
+    ; instr_buffer : instr list
+    ; current_func_index : int
+    ; symbol_resolve : int -> string -> (string * int) option
+    }
 
-let modify f =
-  let* st = get in
-  put (f st)
-;;
+  type 'a t = state -> ('a * state, string) Result.t
 
-let modify_env f = modify (fun st -> { st with env = f st.env })
+  let return x st = Ok (x, st)
+  let fail e = fun _ -> Error e
 
-let get_env =
-  let* st = get in
-  return st.env
-;;
+  let bind m f =
+    fun state ->
+    match m state with
+    | Ok (x, st') -> f x st'
+    | Error e -> Error e
+  ;;
 
-let set_env env = modify (fun st -> { st with env })
+  let ( let* ) = bind
+  let get st = Ok (st, st)
+  let put st = fun _ -> Ok ((), st)
 
-let fresh =
-  let modify_fresh_id f = modify (fun st -> { st with fresh_id = f st.fresh_id }) in
-  let* st = get in
-  let* () = modify_fresh_id Int.succ in
-  return st.fresh_id
-;;
+  let modify f =
+    let* st = get in
+    put (f st)
+  ;;
 
-let run m init = m init
+  let modify_env f = modify (fun st -> { st with env = f st.env })
 
-let append (items : instr list) =
-  let modify_instr_buffer f =
-    modify (fun st -> { st with instr_buffer = f st.instr_buffer })
-  in
-  if List.is_empty items
-  then return ()
-  else
-    modify_instr_buffer (fun l ->
-      List.fold_left items ~init:l ~f:(fun acc it -> it :: acc))
-;;
+  let get_env =
+    let* st = get in
+    return st.env
+  ;;
+
+  let set_env env = modify (fun st -> { st with env })
+
+  let fresh_partial =
+    let* st = get in
+    let name, next = N.fresh_partial st.naming_state in
+    let* () = put { st with naming_state = next } in
+    return name
+  ;;
+
+  let fresh_branch =
+    let* st = get in
+    let pair, next = N.fresh_branch st.naming_state in
+    let* () = put { st with naming_state = next } in
+    return pair
+  ;;
+
+  let run m init = m init
+
+  let append (items : instr list) =
+    let modify_instr_buffer f =
+      modify (fun st -> { st with instr_buffer = f st.instr_buffer })
+    in
+    if items = []
+    then return ()
+    else modify_instr_buffer (fun l -> List.fold_left (fun acc it -> it :: acc) l items)
+  ;;
+end
+
+include Make (Default_naming)
