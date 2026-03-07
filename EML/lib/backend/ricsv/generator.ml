@@ -297,6 +297,23 @@ and gen_branch dst cond then_e else_e =
   let* () = gen_anf dst else_e in
   append (label end_lbl)
 
+and spill_tuple_var_if_in_reg = function
+  | ImmediateVar name ->
+    let* env = get_env in
+    (match Base.Map.find env name with
+     | Some (Loc_reg _) ->
+       let* loc = store_reg_into_frame result_reg in
+       modify_env (fun env -> Base.Map.set env ~key:name ~data:loc)
+     | _ -> return ())
+  | _ -> return ()
+
+and gen_field dst tuple_imm idx =
+  let* () = gen_imm result_reg tuple_imm in
+  let* () = spill_tuple_var_if_in_reg tuple_imm in
+  let* () = append (li (List.nth arg_regs 1) (tag_int idx)) in
+  let* () = append (call "field") in
+  copy_result_to dst
+
 and gen_list dst = function
   | [] -> append (li dst (tag_int 0))
   | hd :: tl ->
@@ -307,6 +324,33 @@ and gen_list dst = function
     let* () = append (li result_reg 2) in
     let* () = load_into_reg (List.nth arg_regs 1) (Loc_reg t0) in
     let* () = load_into_reg (List.nth arg_regs 2) tail_loc in
+    let* () = append (call "create_tuple") in
+    copy_result_to dst
+
+and gen_tuple dst e1 e2 rest =
+  let elts = e1 :: e2 :: rest in
+  let argc = List.length elts in
+  let* () = spill_caller_saved_vars_to_frame in
+  let* state = get in
+  let* spilled = spill_dangerous_args state elts in
+  let array_bytes = argc * word_size in
+  let* () = append (addi sp sp (-array_bytes)) in
+  let* () =
+    Base.List.foldi elts ~init:(return ()) ~f:(fun i acc elt ->
+      let* () = acc in
+      let offset = i * word_size in
+      let src =
+        match Base.Map.find spilled i with
+        | Some loc -> load_into_reg t0 loc
+        | None -> gen_imm t0 elt
+      in
+      let* () = src in
+      append (sd t0 (sp, offset)))
+  in
+  let* () = append (li result_reg argc) in
+  let* () = append (addi (List.nth arg_regs 1) sp 0) in
+  let* () = append (call "create_tuple") in
+  let* () = append (addi sp sp array_bytes) in
     copy_result_to dst
 
 and gen_app dst fname first rest = gen_invocation dst fname (first :: rest)
@@ -318,10 +362,12 @@ and gen_cexpr dst = function
   | ComplexUnarOper (Not, op) -> gen_not dst op
   | ComplexBinOper (op, left, right) -> gen_binop dst op left right
   | ComplexBranch (cond, then_e, else_e) -> gen_branch dst cond then_e else_e
+  | ComplexField (tuple_imm, idx) -> gen_field dst tuple_imm idx
+  | ComplexTuple (e1, e2, rest) -> gen_tuple dst e1 e2 rest
   | ComplexApp (ImmediateVar name, first, rest) -> gen_app dst name first rest
   | ComplexApp (_, _, _) -> fail "ComplexApp: function must be a variable"
-  | ComplexLambda _ | ComplexList _ | ComplexOption _ | ComplexField _ | ComplexTuple _ ->
-    fail "gen_cexpr: Lambda/List/Option/Tuple not implemented"
+  | ComplexLambda _ | ComplexOption _ -> fail "gen_cexpr: Lambda/Option not implemented"
+  | ComplexList imm_list -> gen_list dst imm_list
 
 and gen_anf dst = function
   | AnfExpr cexp -> gen_cexpr dst cexp
