@@ -130,7 +130,7 @@ module Riscv_backend = struct
     | Loc_reg of reg
     | Loc_mem of offset
 
-  let prologue ~name ~stack_size =
+  let prologue ~enable_gc ~name ~stack_size =
     let ra_slot = sp, stack_size - saved_ra_offset in
     let fp_slot = sp, stack_size - frame_header_size in
     let base =
@@ -140,11 +140,15 @@ module Riscv_backend = struct
       @ sd fp fp_slot
       @ addi fp sp (stack_size - frame_header_size)
     in
-    base
+    if enable_gc && String.equal name "main"
+    then base @ call "init_gc" @ mv a0 fp @ call "set_ptr_stack"
+    else base
   ;;
 
-  let epilogue ~is_main =
+  let epilogue ~enable_gc ~is_main =
     let base =
+      (if enable_gc && is_main then call "destroy_gc" else [])
+      @
       addi sp fp frame_header_size
       @ ld ra (fp, saved_ra_offset)
       @ ld fp (fp, saved_fp_offset)

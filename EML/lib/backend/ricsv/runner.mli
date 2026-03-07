@@ -2,4 +2,8 @@
 
 (** SPDX-License-Identifier: LGPL-3.0-or-later *)
 
-val gen_program : Format.formatter -> Middleend.Anf.anf_program -> unit
+val gen_program
+  :  ?enable_gc:bool
+  -> Format.formatter
+  -> Middleend.Anf.anf_program
+  -> unit

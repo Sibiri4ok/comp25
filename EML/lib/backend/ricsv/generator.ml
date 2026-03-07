@@ -359,8 +359,13 @@ let flush_instr_buffer ppf =
   return ()
 ;;
 
+<<<<<<< HEAD
 let gen_func asm_name params body frame_sz ppf =
   fprintf ppf "\n  .globl %s\n  .type %s, @function\n" asm_name asm_name;
+=======
+let gen_func ~enable_gc func_name params body frame_sz ppf =
+  fprintf ppf "\n  .globl %s\n  .type %s, @function\n" func_name func_name;
+>>>>>>> 698314c (add gc & some tests)
   let args = List.length params in
   let params_reg, params_stack =
     ( Base.List.take params (min args arg_regs_count)
@@ -378,19 +383,31 @@ let gen_func asm_name params body frame_sz ppf =
       bind_param_to_stack e i p)
   in
   let* () = set_env env in
+<<<<<<< HEAD
   let* () = append (prologue ~name:asm_name ~stack_size:frame_sz) in
+=======
+  let* () = append (prologue ~enable_gc ~name:func_name ~stack_size:frame_sz) in
+>>>>>>> 698314c (add gc & some tests)
   let* st = get in
   let* () = put { st with frame_offset = 0 } in
   let* () = spill_params_to_frame params_reg in
   let* () = gen_anf result_reg body in
+<<<<<<< HEAD
   let* () = append (epilogue ~is_main:(String.equal asm_name "main")) in
+=======
+  let* () = append (epilogue ~enable_gc ~is_main:(String.equal func_name "main")) in
+>>>>>>> 698314c (add gc & some tests)
   let* () = flush_instr_buffer ppf in
   return ()
 ;;
 
-let gen_program ppf (analysis : analysis_result) =
+let gen_program ?(enable_gc = false) ppf (analysis : analysis_result) =
   fprintf ppf ".section .text";
+<<<<<<< HEAD
   let base = Frontend.Builtins.all_runtime_prims in
+=======
+  let base = Config.primitive_arities ~enable_gc in
+>>>>>>> 698314c (add gc & some tests)
   let arity_map =
     List.fold_left
       (fun map { Frontend.Builtins.name; arity } ->
@@ -412,8 +429,12 @@ let gen_program ppf (analysis : analysis_result) =
     Base.List.foldi analysis.functions ~init:(return ()) ~f:(fun i acc fn ->
       let frame_sz = (2 + fn.slots_count) * word_size in
       let* () = acc in
+<<<<<<< HEAD
       let* () = modify (fun st -> { st with current_func_index = i }) in
       gen_func fn.asm_name fn.params fn.body frame_sz ppf)
+=======
+      gen_func ~enable_gc fn.func_name fn.params fn.body frame_sz ppf)
+>>>>>>> 698314c (add gc & some tests)
   in
   match run comp init with
   | Ok ((), _) ->

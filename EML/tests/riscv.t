@@ -6,9 +6,7 @@ SPDX-License-Identifier: LGPL-3.0-or-later
   > 
   > let main = print_int (fac 4)
 
-  $ riscv64-linux-gnu-as -march=rv64gc fact.s -o fact.o
-  $ riscv64-linux-gnu-gcc fact.o ../lib/runtime/rv64_runtime.a -o fact.exe
-  $ qemu-riscv64 -L /usr/riscv64-linux-gnu -cpu rv64 ./fact.exe
+  $ make compile fact.s
   24
 
   $ EML -o fibo.s <<EOF
@@ -16,7 +14,33 @@ SPDX-License-Identifier: LGPL-3.0-or-later
   > 
   > let main = print_int (fib 6)
 
-  $ riscv64-linux-gnu-as -march=rv64gc fibo.s -o fibo.o
-  $ riscv64-linux-gnu-gcc fibo.o ../lib/runtime/rv64_runtime.a -o fibo.exe
-  $ qemu-riscv64 -L /usr/riscv64-linux-gnu -cpu rv64 ./fibo.exe
+  $ make compile fibo.s
   8
+
+====================== without gc ======================
+
+  $ make compile many_tests/typed/001fac.ml
+  24
+
+  $ make compile many_tests/typed/003fib.ml
+  33
+
+  $ make compile many_tests/typed/004manyargs.ml
+  1111111111110100
+
+  $ make compile many_tests/typed/005fix.ml
+  720
+
+  $ make compile many_tests/typed/006partial2.ml
+  1237
+
+
+
+  $ make compile many_tests/typed/010fac_anf.ml
+
+  $ make compile many_tests/typed/010faccps_ll.ml
+  24
+
+  $ make compile many_tests/typed/010fibcps_ll.ml
+  8
+
