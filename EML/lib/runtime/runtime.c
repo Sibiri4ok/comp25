@@ -10,6 +10,7 @@
 
 void print_int(long n) { printf("%ld", TO_ML_INTEGER(n)); }
 
+#define TAG_TUPLE 246
 #define TAG_CLOSURE 247
 #define RISCV_REG_ARGS 8
 #define SIZE_HEAP 800
@@ -55,6 +56,9 @@ static inline bool in_bank(uint64_t *ptr, int bank_idx) {
 }
 
 static size_t scan_start_for_tag(uint16_t tag) {
+  if (tag == TAG_TUPLE) {
+    return 1;
+  }
   if (tag == TAG_CLOSURE) {
     return 3;
   }
@@ -344,3 +348,20 @@ void *eml_applyN(closure *c, int64_t argc, void **argv) {
 
   return partial;
 }
+
+typedef struct {
+  int64_t arity;
+  void *args[];
+} tuple;
+
+tuple *create_tuple(int64_t argc, void **args) {
+  size_t words = 1 + (size_t)argc;
+  tuple *t = (tuple *)eml_alloc(words * sizeof(uint64_t), TAG_TUPLE);
+  t->arity = argc;
+  for (size_t i = 0; i < (size_t)argc; i++) {
+    t->args[i] = args[i];
+  }
+  return t;
+}
+
+void *field(tuple *t, long n) { return t->args[n >> 1]; }

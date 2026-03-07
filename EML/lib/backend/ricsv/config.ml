@@ -13,6 +13,8 @@ let primitive_arities ~enable_gc : primitive list =
   let base =
     [ { name = "print_int"; arity = 1 }
     ; { name = "print_endline"; arity = 1 }
+    ; { name = "create_tuple"; arity = 2 }
+    ; { name = "field"; arity = 2 }
     ; { name = "alloc_closure"; arity = 2 }
     ; { name = "eml_applyN"; arity = 3 }
     ]
