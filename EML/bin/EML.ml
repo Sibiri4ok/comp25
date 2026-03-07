@@ -39,8 +39,10 @@ let with_frontend text env oc f_success : (env, unit) Result.t =
 ;;
 
 let with_middleend ast _env' f : (env, unit) Result.t =
-  match Middleend.Anf.anf_program ast with
-  | Error _ -> Error ()
+  match Middleend.Runner.run ast with
+  | Error e_mid ->
+    Format.eprintf "Middleend error: %a\n%!" Middleend.Runner.pp_error e_mid;
+    Error ()
   | Ok anf_ast -> f anf_ast
 ;;
 
