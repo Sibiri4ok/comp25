@@ -1,22 +1,3 @@
-(library
- (name LL)
- (public_name EML.LL)
- (modules LL)
- (wrapped false)
- (libraries
-  llvm
-  llvm.analysis
-  ;
-  ))
-
 (executable
- (public_name EML)
- (name main)
- (modules main)
- (libraries LL EML_lib)
- (instrumentation
-  (backend bisect_ppx)))
-
-(cram
- (package EML)
- (deps ./main.exe))
+ (name EML)
+ (libraries stdio base EML.lib))
