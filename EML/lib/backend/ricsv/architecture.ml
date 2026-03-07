@@ -125,20 +125,34 @@ module Riscv_backend = struct
   let frame_header_size = 2 * word_size
   let saved_fp_offset = 0
   let saved_ra_offset = word_size
+  let riscv_imm12_min = -2048
+  let riscv_imm12_max = 2047
+
+  let fits_imm12 n = n >= riscv_imm12_min && n <= riscv_imm12_max
 
   type location =
     | Loc_reg of reg
     | Loc_mem of offset
 
   let prologue ~enable_gc ~name ~stack_size =
-    let ra_slot = sp, stack_size - saved_ra_offset in
-    let fp_slot = sp, stack_size - frame_header_size in
+    let ra_slot = fp, saved_ra_offset in
+    let fp_slot = fp, saved_fp_offset in
+    let dec_sp =
+      if fits_imm12 (-stack_size)
+      then addi sp sp (-stack_size)
+      else li t0 stack_size @ sub sp sp t0
+    in
+    let set_fp =
+      let ofs = stack_size - frame_header_size in
+      if fits_imm12 ofs then addi fp sp ofs else li t0 ofs @ add fp sp t0
+    in
     let base =
       label name
-      @ addi sp sp (-stack_size)
+      @ mv t1 fp
+      @ dec_sp
+      @ set_fp
       @ sd ra ra_slot
-      @ sd fp fp_slot
-      @ addi fp sp (stack_size - frame_header_size)
+      @ sd t1 fp_slot
     in
     if enable_gc && String.equal name "main"
     then base @ call "init_gc" @ mv a0 fp @ call "set_ptr_stack"

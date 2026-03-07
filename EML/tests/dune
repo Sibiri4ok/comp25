@@ -11,7 +11,7 @@
 (cram
  (applies_to riscv)
  (deps
-  (package EML)
+  (file ../bin/EML.exe)
   (file Makefile)
   (file ../lib/runtime/rv64_runtime.a)
   (source_tree gc_tests)
@@ -20,7 +20,7 @@
 (cram
  (applies_to gc_tests)
  (deps
-  (package EML)
+  (file ../bin/EML.exe)
   (file Makefile)
   (file ../lib/runtime/rv64_runtime.a)
   (source_tree gc_tests)

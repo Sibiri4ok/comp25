@@ -6,4 +6,4 @@ val gen_program
   :  ?enable_gc:bool
   -> Format.formatter
   -> Middleend.Anf.anf_program
-  -> unit
+  -> (unit, string) result

@@ -25,5 +25,5 @@ let run (text : string) (env : TypeEnv.t)
   | Ok ast ->
     (match Inferencer.ResultMonad.run (infer_structure env ast) with
      | Error e -> Error (Infer e)
-     | Ok (env', out_list) -> Ok (ast, env', out_list))
+     | Ok (_subst, env') -> Ok (ast, env', []))
 ;;

@@ -37,6 +37,7 @@ let names_in_pattern p =
     | PatConstruct (_, None) -> []
     | PatConstruct (_, Some q) -> collect q
     | PatType (q, _) -> collect q
+    | PatTuple (p1, p2, rest) -> List.concat (List.map collect (p1 :: p2 :: rest))
     | PatUnit -> []
     | PatList ps -> List.concat (List.map collect ps)
     | PatOption p_opt ->
@@ -342,6 +343,14 @@ module Make (N : NAMING) = struct
     | ExpUnarOper (op, e) ->
       let* res = lift_expr (inner ctx) e in
       return { structures = res.structures; expr = ExpUnarOper (op, res.expr) }
+    | ExpTuple (e1, e2, rest) ->
+      let* first = lift_expr (inner ctx) e1 in
+      let* second = lift_expr (inner ctx) e2 in
+      let* rest_structures, rest_exprs = list rest (lift_expr (inner ctx)) in
+      return
+        { structures = first.structures @ second.structures @ rest_structures
+        ; expr = ExpTuple (first.expr, second.expr, rest_exprs)
+        }
     | ExpList es ->
       let* elem_structures, lifted_elems = list es (lift_expr (inner ctx)) in
       return { structures = elem_structures; expr = ExpList lifted_elems }
@@ -349,8 +358,6 @@ module Make (N : NAMING) = struct
     | ExpOption (Some e) ->
       let* res = lift_expr (inner ctx) e in
       return { structures = res.structures; expr = ExpOption (Some res.expr) }
-  (* | ExpTuple (e1, e2, rest) -> *)
-
   and lift_binds (ctx : context) binds : (structure list * (pattern * expr) list) t =
     fold_binds ctx binds (fun ctx _ e -> lift_expr ctx e)
 

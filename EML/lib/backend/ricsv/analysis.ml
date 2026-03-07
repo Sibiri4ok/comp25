@@ -28,12 +28,12 @@ and slots_in_cexpr = function
   | ComplexBinOper (_, left, right) -> slots_in_imm left + slots_in_imm right
   | ComplexUnarOper (_, imm) -> slots_in_imm imm
   | ComplexTuple (first, second, rest) ->
-    List.fold_left (first :: second :: rest) ~init:0 ~f:(fun acc e ->
+    Base.List.fold_left (first :: second :: rest) ~init:0 ~f:(fun acc e ->
       acc + slots_in_imm e)
   | ComplexField (imm, _) -> slots_in_imm imm
   | ComplexList imm_list ->
     let n = List.length imm_list in
-    n + List.fold_left (fun acc e -> acc + slots_in_imm e) 0 imm_list
+    n + Base.List.fold_left imm_list ~init:0 ~f:(fun acc e -> acc + slots_in_imm e)
   | ComplexApp (first, second, rest) ->
     (* +1 for curried-call intermediate; +1 per arg for spill_dangerous_args.
        +8 for spill_caller_saved_vars_to_frame at start of every invocation (can spill a0-a7).
@@ -41,7 +41,11 @@ and slots_in_cexpr = function
     let args = first :: second :: rest in
     let nargs = List.length args in
     let extra = if nargs >= 2 then 12 else 0 in
-    1 + 8 + nargs + extra + List.fold_left (fun acc e -> acc + slots_in_imm e) 0 args
+    1
+    + 8
+    + nargs
+    + extra
+    + Base.List.fold_left args ~init:0 ~f:(fun acc e -> acc + slots_in_imm e)
   | ComplexOption None -> 0
   | ComplexOption (Some imm) -> slots_in_imm imm
   | ComplexLambda (_, body) -> slots_in_anf body

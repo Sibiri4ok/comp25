@@ -246,6 +246,23 @@ module TypeEnv = struct
          ~key:"print_bool"
          ~data:(Scheme.Scheme (VarSet.empty, TyArrow (TyPrim "bool", TyPrim "unit")))
   ;;
+
+  let env_with_gc =
+    let open Base.Map in
+    initial_env
+    |> set
+         ~key:"collect"
+         ~data:(Scheme.Scheme (VarSet.empty, TyArrow (TyPrim "unit", TyPrim "unit")))
+    |> set
+         ~key:"print_gc_status"
+         ~data:(Scheme.Scheme (VarSet.empty, TyArrow (TyPrim "unit", TyPrim "unit")))
+    |> set
+         ~key:"get_heap_start"
+         ~data:(Scheme.Scheme (VarSet.empty, TyArrow (TyPrim "unit", TyPrim "int")))
+    |> set
+         ~key:"get_heap_final"
+         ~data:(Scheme.Scheme (VarSet.empty, TyArrow (TyPrim "unit", TyPrim "int")))
+  ;;
 end
 
 open ResultMonad
@@ -343,6 +360,7 @@ let rec infer_pattern env = function
   | PatUnit -> return (Substitution.empty, TyPrim "unit", env)
   | PatConstruct (name, opt) ->
     (match name, opt with
+     | "()", None -> return (Substitution.empty, TyPrim "unit", env)
      | "None", None ->
        let* fresh = fresh_var in
        return (Substitution.empty, TyOption fresh, env)
@@ -626,6 +644,7 @@ let rec infer_expr env = function
      | None -> fail (RHS "Empty match"))
   | ExpConstruct (name, opt_expr) ->
     (match name, opt_expr with
+     | "()", None -> return (Substitution.empty, TyPrim "unit")
      | "None", None ->
        let* tv = fresh_var in
        return (Substitution.empty, TyOption tv)

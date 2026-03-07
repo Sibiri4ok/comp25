@@ -7,5 +7,5 @@ type primitive =
   ; arity : int
   }
 
-val all_runtime_prims : bool -> primitive list
+val all_runtime_prims : primitive list
 val builtin_global_names : string list

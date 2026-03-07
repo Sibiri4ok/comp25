@@ -22,6 +22,8 @@ let vars_in_pattern p =
     | PatConstruct (_, None) -> VarSet.empty
     | PatConstruct (_, Some q) -> walk q
     | PatType (q, _) -> walk q
+    | PatTuple (p1, p2, rest) ->
+      union_map_list walk (p1 :: p2 :: rest)
     | PatUnit | PatList _ | PatOption _ -> VarSet.empty
   in
   walk p
@@ -67,6 +69,8 @@ let rec collect_free_vars = function
   | ExpTypeAnnotation (e, _) -> collect_free_vars e
   | ExpBinOper (_, e1, e2) -> VarSet.union (collect_free_vars e1) (collect_free_vars e2)
   | ExpUnarOper (_, e) -> collect_free_vars e
+  | ExpTuple (e1, e2, rest) ->
+    union_map_list collect_free_vars (e1 :: e2 :: rest)
   | ExpList es -> union_map_list collect_free_vars es
   | ExpOption e_opt ->
     (match e_opt with
@@ -115,6 +119,8 @@ let extend_capture_env env pat captured_set =
     | PatAny | PatConst _ | PatConstruct (_, None) -> acc
     | PatVariable name -> EnvMap.add name captured_set acc
     | PatConstruct (_, Some p) | PatType (p, _) -> add_captures_for_pat acc p
+    | PatTuple (p1, p2, rest) ->
+      List.fold_left add_captures_for_pat acc (p1 :: p2 :: rest)
     | PatUnit | PatList _ | PatOption _ -> acc
   in
   add_captures_for_pat env pat
@@ -226,6 +232,19 @@ and convert_expr = function
         (return [])
     in
     return (ExpList es')
+  | ExpTuple (e1, e2, rest) ->
+    let* e1' = convert_expr e1 in
+    let* e2' = convert_expr e2 in
+    let* rest' =
+      List.fold_right
+        (fun e acc ->
+           let* e' = convert_expr e in
+           let* acc' = acc in
+           return (e' :: acc'))
+        rest
+        (return [])
+    in
+    return (ExpTuple (e1', e2', rest'))
   | ExpOption e_opt ->
     (match e_opt with
      | None -> return (ExpOption None)
