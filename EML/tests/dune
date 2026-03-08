@@ -34,3 +34,10 @@
   (file ../lib/runtime/rv64_runtime.a)
   (source_tree tuple_tests)
   (source_tree many_tests)))
+
+(cram
+ (applies_to llvm)
+ (deps
+  (file ../bin/EML.exe)
+  (file Makefile)
+  (source_tree many_tests)))
