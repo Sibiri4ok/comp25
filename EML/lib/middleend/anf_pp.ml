@@ -3,6 +3,7 @@ open Stdlib.Format
 open Frontend
 open Ast
 open Anf
+open Utils.Pretty_printer
 
 let pp_ty = Frontend.Ast.pp_ty
 
@@ -20,28 +21,10 @@ and pp_complex_expr fmt = function
   | ComplexUnit -> fprintf fmt "()"
   | ComplexField (imm, i) -> fprintf fmt "%a.%d" pp_immediate imm i
   | ComplexBinOper (op, e1, e2) ->
-    let op_str =
-      match op with
-      | Plus -> "+"
-      | Minus -> "-"
-      | Multiply -> "*"
-      | Division -> "/"
-      | And -> "&&"
-      | Or -> "||"
-      | GretestEqual -> ">="
-      | LowestEqual -> "<="
-      | GreaterThan -> ">"
-      | LowerThan -> "<"
-      | Equal -> "="
-      | NotEqual -> "<>"
-    in
+    let op_str = string_of_bin_op op in
     fprintf fmt "(%a %s %a)" pp_immediate e1 op_str pp_immediate e2
   | ComplexUnarOper (op, e) ->
-    let op_str =
-      match op with
-      | Negative -> "-"
-      | Not -> "not"
-    in
+    let op_str = string_of_unary_op op in
     fprintf fmt "(%s %a)" op_str pp_immediate e
   | ComplexTuple (e1, e2, rest) ->
     let all_exprs = e1 :: e2 :: rest in

@@ -6,7 +6,6 @@ open Middleend.Anf
 open Architecture
 open Riscv_backend
 open Generator_state
-open Frontend.Ast
 
 let is_caller_saved = function
   | A _ | T _ -> true
@@ -51,20 +50,7 @@ let bin_op dst op left_reg right_reg : (instr list, string) result =
   | _ -> Error ("unsupported binary operator: " ^ op)
 ;;
 
-let bin_oper_to_string = function
-  | Plus -> "+"
-  | Minus -> "-"
-  | Multiply -> "*"
-  | Division -> "/"
-  | And -> "&&"
-  | Or -> "||"
-  | Equal -> "="
-  | NotEqual -> "<>"
-  | GreaterThan -> ">"
-  | LowerThan -> "<"
-  | GretestEqual -> ">="
-  | LowestEqual -> "<="
-;;
+let bin_oper_to_string = Utils.Pretty_printer.string_of_bin_op
 
 let vars_in_caller_saved_regs env =
   Base.Map.to_alist env

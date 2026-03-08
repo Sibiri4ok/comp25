@@ -171,3 +171,83 @@ let%expect_test "pretty_printer_test2" =
 
       let main = fibo 10|}]
 ;;
+
+let%expect_test "anf_match_list_lowering_nil_cons_order" =
+  parse_and_anf
+    {| let rec h xs =
+  match xs with
+  | [] -> 0
+  | hd::tl -> hd |};
+  [%expect
+    {|
+[(AnfValue (Rec,
+    ("h", 1,
+     (AnfExpr
+        (ComplexLambda ([(PatVariable "xs")],
+           (AnfLet (NonRec, "anf_t0", (ComplexImmediate (ImmediateVar "xs")),
+              (AnfLet (NonRec, "anf_t1",
+                 (ComplexBinOper (Equal, (ImmediateVar "anf_t0"),
+                    (ImmediateConst (ConstInt 0)))),
+                 (AnfExpr
+                    (ComplexBranch ((ImmediateVar "anf_t1"),
+                       (AnfExpr
+                          (ComplexImmediate (ImmediateConst (ConstInt 0)))),
+                       (AnfLet (NonRec, "hd",
+                          (ComplexField ((ImmediateVar "anf_t0"), 0)),
+                          (AnfLet (NonRec, "tl",
+                             (ComplexField ((ImmediateVar "anf_t0"), 1)),
+                             (AnfExpr (ComplexImmediate (ImmediateVar "hd")))
+                             ))
+                          ))
+                       )))
+                 ))
+              ))
+           )))),
+    []))
+  ]|}]
+;;
+
+let%expect_test "anf_match_list_lowering_cons_nil_order" =
+  parse_and_anf
+    {| let rec h xs =
+  match xs with
+  | hd::tl -> hd
+  | [] -> 0 |};
+  [%expect
+    {|
+[(AnfValue (Rec,
+    ("h", 1,
+     (AnfExpr
+        (ComplexLambda ([(PatVariable "xs")],
+           (AnfLet (NonRec, "anf_t0", (ComplexImmediate (ImmediateVar "xs")),
+              (AnfLet (NonRec, "anf_t1",
+                 (ComplexBinOper (Equal, (ImmediateVar "anf_t0"),
+                    (ImmediateConst (ConstInt 0)))),
+                 (AnfExpr
+                    (ComplexBranch ((ImmediateVar "anf_t1"),
+                       (AnfExpr
+                          (ComplexImmediate (ImmediateConst (ConstInt 0)))),
+                       (AnfLet (NonRec, "hd",
+                          (ComplexField ((ImmediateVar "anf_t0"), 0)),
+                          (AnfLet (NonRec, "tl",
+                             (ComplexField ((ImmediateVar "anf_t0"), 1)),
+                             (AnfExpr (ComplexImmediate (ImmediateVar "hd")))
+                             ))
+                          ))
+                       )))
+                 ))
+              ))
+           )))),
+    []))
+  ]|}]
+;;
+
+let%expect_test "anf_unsupported_match_shape_error" =
+  parse_and_anf
+    {| let rec h xs =
+  match xs with
+  | [] -> 0
+  | [x] -> x
+  | hd::tl -> hd |};
+  [%expect {|ANF error: Only list match with [] and h::tl is supported|}]
+;;

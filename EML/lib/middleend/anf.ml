@@ -8,8 +8,8 @@
 
 open Frontend.Ast
 open Base
-open Util.Monads.ANFMonad
-open Util.Monads.ANFMonad.Syntax
+open Utils.Monads.ANFMonad
+open Utils.Monads.ANFMonad.Syntax
 
 type immediate =
   | ImmediateConst of const
