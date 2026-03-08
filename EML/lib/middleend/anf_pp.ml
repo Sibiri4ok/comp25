@@ -1,7 +1,6 @@
 (* Pretty-printer for ANF expressions *)
 open Stdlib.Format
-open Frontend
-open Ast
+open Frontend.Ast
 open Anf
 
 let pp_ty = Frontend.Ast.pp_ty
@@ -128,7 +127,6 @@ and pp_anf_expr fmt = function
     fprintf fmt "let %s%s = %a in@ %a" rec_flag name pp_complex_expr v pp_anf_expr body
   | AnfExpr e -> pp_complex_expr fmt e
 
-and pp_anf_bind fmt (name, expr) = fprintf fmt "%s = %a" name pp_anf_expr expr
 and pp_anf_fun_bind fmt (name, _arity, expr) = fprintf fmt "%s = %a" name pp_anf_expr expr
 
 and pp_anf_structure fmt = function

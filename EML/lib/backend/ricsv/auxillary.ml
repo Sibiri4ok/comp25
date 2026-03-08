@@ -17,8 +17,7 @@ let to_tagged_bool dst = add dst dst dst @ add_tag_items dst 1
 
 let compare_ordering dst r1 r2 ~invert =
   let base = slt dst r1 r2 in
-  let tagged = if invert then base @ xori dst dst 1 else base in
-  tagged @ to_tagged_bool dst
+  (if invert then base @ xori dst dst 1 else base) @ to_tagged_bool dst
 ;;
 
 let compare_eq_ne dst r1 r2 ~is_eq =

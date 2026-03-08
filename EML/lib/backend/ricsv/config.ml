@@ -19,13 +19,12 @@ let primitive_arities ~enable_gc : primitive list =
     ; { name = "eml_applyN"; arity = 3 }
     ]
   in
-  if enable_gc
-  then
-    base
-    @ [ { name = "get_heap_start"; arity = 0 }
-      ; { name = "get_heap_final"; arity = 0 }
-      ; { name = "collect"; arity = 0 }
-      ; { name = "print_gc_status"; arity = 0 }
-      ]
-  else base
+  let gc_only =
+    [ { name = "get_heap_start"; arity = 0 }
+    ; { name = "get_heap_final"; arity = 0 }
+    ; { name = "collect"; arity = 0 }
+    ; { name = "print_gc_status"; arity = 0 }
+    ]
+  in
+  base @ if enable_gc then gc_only else []
 ;;

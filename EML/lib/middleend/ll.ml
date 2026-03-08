@@ -178,6 +178,14 @@ module Make (N : NAMING) = struct
   ;;
 
   let inner (ctx : context) = { ctx with at_toplevel = false }
+  let with_pattern_scope ctx pat =
+    { ctx with renames = without_bindings ctx.renames (names_in_pattern pat) }
+  ;;
+
+  let fresh_name =
+    let* names = take_names 1 in
+    return (List.hd names)
+  ;;
 
   let fold_binds (ctx : context) binds (f : context -> pattern -> expr -> lift_result t)
     : (structure list * (pattern * expr) list) t
@@ -231,17 +239,19 @@ module Make (N : NAMING) = struct
               (List.combine unique_ids names)
         }
       in
-      let* inner_structures, lifted_binds =
+      let* rev_inner_structures, rev_lifted_binds =
         List.fold_left
           (fun acc (p, e) ->
              let* structures_acc, binds_acc = acc in
              let* res = lift_expr rec_ctx e in
              return
-               ( structures_acc @ res.structures
-               , binds_acc @ [ rename_pattern rec_ctx.renames p, res.expr ] ))
+               ( List.rev_append res.structures structures_acc
+               , (rename_pattern rec_ctx.renames p, res.expr) :: binds_acc ))
           (return ([], []))
           rec_binds
       in
+      let inner_structures = List.rev rev_inner_structures in
+      let lifted_binds = List.rev rev_lifted_binds in
       let* res_body = lift_expr rec_ctx body in
       let* first_bind, rest_binds =
         match lifted_binds with
@@ -259,8 +269,7 @@ module Make (N : NAMING) = struct
       let* res = lift_expr (inner ctx) body in
       return { structures = res.structures; expr = ExpLambda (pat, pats, res.expr) }
     | ExpLambda (pat, pats, body) ->
-      let* names = take_names 1 in
-      let name = List.hd names in
+      let* name = fresh_name in
       let args = pat :: pats in
       let bound = List.concat (List.map names_in_pattern args) in
       let* res =
@@ -276,9 +285,7 @@ module Make (N : NAMING) = struct
         (lift_expr (inner ctx) e2)
         (fun e1' e2' -> ExpApply (e1', e2'))
     | ExpFunction ((pat, exp), cases) when ctx.at_toplevel ->
-      let ctx_rhs =
-        { (inner ctx) with renames = without_bindings ctx.renames (names_in_pattern pat) }
-      in
+      let ctx_rhs = with_pattern_scope (inner ctx) pat in
       let* res_rhs = lift_expr ctx_rhs exp in
       let* case_structures, lifted_cases =
         lift_binds_with_pattern_scope (inner ctx) cases
@@ -288,11 +295,8 @@ module Make (N : NAMING) = struct
         ; expr = ExpFunction ((pat, res_rhs.expr), lifted_cases)
         }
     | ExpFunction ((pat1, exp1), cases) ->
-      let* names = take_names 1 in
-      let name = List.hd names in
-      let ctx_body =
-        { ctx with renames = without_bindings ctx.renames (names_in_pattern pat1) }
-      in
+      let* name = fresh_name in
+      let ctx_body = with_pattern_scope ctx pat1 in
       let* res_body = lift_expr ctx_body exp1 in
       let* case_structures, lifted_cases = lift_binds_with_pattern_scope ctx cases in
       let value_def =
@@ -307,9 +311,7 @@ module Make (N : NAMING) = struct
         }
     | ExpMatch (e, (pat, branch), cases) ->
       let* res_scrut = lift_expr (inner ctx) e in
-      let ctx_branch =
-        { (inner ctx) with renames = without_bindings ctx.renames (names_in_pattern pat) }
-      in
+      let ctx_branch = with_pattern_scope (inner ctx) pat in
       let* res_branch = lift_expr ctx_branch branch in
       let* case_structures, lifted_cases = lift_binds_with_pattern_scope ctx cases in
       return
@@ -364,11 +366,7 @@ module Make (N : NAMING) = struct
   and lift_binds_with_pattern_scope (ctx : context) binds
     : (structure list * (pattern * expr) list) t
     =
-    fold_binds ctx binds (fun ctx p e ->
-      let ctx_binding =
-        { ctx with renames = without_bindings ctx.renames (names_in_pattern p) }
-      in
-      lift_expr ctx_binding e)
+    fold_binds ctx binds (fun ctx p e -> lift_expr (with_pattern_scope ctx p) e)
   ;;
 
   let lift_structure : structure -> structure list t = function

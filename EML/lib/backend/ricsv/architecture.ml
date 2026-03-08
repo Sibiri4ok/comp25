@@ -81,7 +81,6 @@ module Riscv_backend = struct
   let fp = S 0
   let sp = SP
   let ra = RA
-  let zero = Zero
   let a0 = A 0
   let a1 = A 1
   let a2 = A 2

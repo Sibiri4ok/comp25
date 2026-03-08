@@ -83,9 +83,6 @@ type context =
   ; env : VarSet.t EnvMap.t
   }
 
-let with_globals ctx g = { ctx with globals = g }
-let with_env ctx e = { ctx with env = e }
-
 type error = LambdaWithoutParameters
 
 let pp_error ppf = function
@@ -109,7 +106,13 @@ let local f m = fun ctx -> m (f ctx)
 let run ctx m = m ctx
 let ( let* ) = bind
 
-let of_result = function
+let rec map_list_m f = function
+  | [] -> return []
+  | x :: xs ->
+    let* y = f x in
+    let* ys = map_list_m f xs in
+    return (y :: ys)
+let from_result = function
   | Ok x -> return x
   | Error e -> fail e
 ;;
@@ -173,28 +176,12 @@ and convert_expr = function
     return (ExpApply (f', arg'))
   | ExpFunction ((pat, exp), cases) ->
     let* first_exp = convert_expr exp in
-    let* rest_cases =
-      List.fold_right
-        (fun (p, e) acc ->
-           let* e' = convert_expr e in
-           let* rest = acc in
-           return ((p, e') :: rest))
-        cases
-        (return [])
-    in
+    let* rest_cases = map_list_m (fun (p, e) -> let* e' = convert_expr e in return (p, e')) cases in
     return (ExpFunction ((pat, first_exp), rest_cases))
   | ExpMatch (e, (pat, branch), cases) ->
     let* scrutinee' = convert_expr e in
     let* branch' = convert_expr branch in
-    let* rest_cases =
-      List.fold_right
-        (fun (p, e) acc ->
-           let* e' = convert_expr e in
-           let* rest = acc in
-           return ((p, e') :: rest))
-        cases
-        (return [])
-    in
+    let* rest_cases = map_list_m (fun (p, e) -> let* e' = convert_expr e in return (p, e')) cases in
     return (ExpMatch (scrutinee', (pat, branch'), rest_cases))
   | ExpBranch (cond, then_e, else_opt) ->
     let* cond' = convert_expr cond in
@@ -222,28 +209,12 @@ and convert_expr = function
     let* e' = convert_expr e in
     return (ExpUnarOper (op, e'))
   | ExpList es ->
-    let* es' =
-      List.fold_right
-        (fun e acc ->
-           let* e' = convert_expr e in
-           let* acc' = acc in
-           return (e' :: acc'))
-        es
-        (return [])
-    in
+    let* es' = map_list_m convert_expr es in
     return (ExpList es')
   | ExpTuple (e1, e2, rest) ->
     let* e1' = convert_expr e1 in
     let* e2' = convert_expr e2 in
-    let* rest' =
-      List.fold_right
-        (fun e acc ->
-           let* e' = convert_expr e in
-           let* acc' = acc in
-           return (e' :: acc'))
-        rest
-        (return [])
-    in
+    let* rest' = map_list_m convert_expr rest in
     return (ExpTuple (e1', e2', rest'))
   | ExpOption e_opt ->
     (match e_opt with
@@ -268,7 +239,7 @@ and convert_let_bindings rec_flag (pat, exp) rest_binds =
         current_ctx.env
         bind_group
     in
-    let rec_group_ctx = with_env (with_globals current_ctx globals') env' in
+    let rec_group_ctx = { globals = globals'; env = env' } in
     let rec loop acc = function
       | [] -> return (List.rev acc)
       | (p, e) :: rest ->
@@ -279,7 +250,7 @@ and convert_let_bindings rec_flag (pat, exp) rest_binds =
             run rec_group_ctx (build_closure ~apply:false (lam_pat :: lam_pats) body fvs)
           | _ -> run rec_group_ctx (convert_expr e)
         in
-        let* e' = of_result res in
+        let* e' = from_result res in
         loop ((p, e') :: acc) rest
     in
     let* transformed_binds = loop [] bind_group in
@@ -291,7 +262,7 @@ and convert_let_bindings rec_flag (pat, exp) rest_binds =
         return
           ( List.hd transformed_binds
           , List.tl transformed_binds
-          , with_env current_ctx env_acc )
+          , { current_ctx with env = env_acc } )
       | (p, e) :: rest ->
         let captured = VarSet.diff (collect_free_vars e) current_ctx.globals in
         let ctx_with_env = { current_ctx with env = env_acc } in
@@ -303,7 +274,7 @@ and convert_let_bindings rec_flag (pat, exp) rest_binds =
               (build_closure ~apply:false (lam_pat :: lam_pats) body captured)
           | _ -> run ctx_with_env (convert_expr e)
         in
-        let* e' = of_result res in
+        let* e' = from_result res in
         let env_next =
           match e with
           | ExpLambda _ -> extend_capture_env env_acc p captured

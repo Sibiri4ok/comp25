@@ -37,6 +37,8 @@ let load_into_reg dst_reg loc =
   return ()
 ;;
 
+let bind_env name loc = modify_env (fun env -> Base.Map.set env ~key:name ~data:loc)
+
 (** Spill function parameters to the frame in param order (index 0 → first slot).
     Ensures env maps each param name to a consistent slot so (self l) loads self, not l. *)
 let spill_params_to_frame params_reg =
@@ -46,7 +48,7 @@ let spill_params_to_frame params_reg =
     | ImmediateVar name ->
       let r = List.nth arg_regs i in
       let* slot = store_reg_into_frame r in
-      modify_env (fun env -> Base.Map.set env ~key:name ~data:slot)
+      bind_env name slot
     | _ -> return ())
 ;;
 
@@ -129,12 +131,23 @@ let gen_imm dst = function
            append (call "alloc_closure")))
 ;;
 
+let load_arg_into_reg spilled i arg reg =
+  match Base.Map.find spilled i with
+  | Some loc -> load_into_reg reg loc
+  | None -> gen_imm reg arg
+
 let copy_result_to dst =
   if equal_reg dst result_reg then return () else append (mv dst result_reg)
 ;;
 
 let spill_dangerous_args state exps =
   let dangerous_idxs = indices_of_args_to_spill state exps in
+  let dangerous =
+    List.fold_left
+      (fun set idx -> Base.Set.add set idx)
+      (Base.Set.empty (module Base.Int))
+      dangerous_idxs
+  in
   let spill_slots = List.length dangerous_idxs * word_size in
   let* () = if spill_slots > 0 then append (addi sp sp (-spill_slots)) else return () in
   Base.List.foldi
@@ -142,7 +155,7 @@ let spill_dangerous_args state exps =
     ~init:(return (Base.Map.empty (module Base.Int)))
     ~f:(fun i acc arg ->
       let* spilled = acc in
-      if List.mem i dangerous_idxs
+      if Base.Set.mem dangerous i
       then
         let* () = gen_imm result_reg arg in
         let* loc = store_reg_into_frame result_reg in
@@ -155,9 +168,7 @@ let load_exps_into_regs spilled_locs arg_regs exps =
   Base.List.foldi (Base.List.take exps n) ~init:(return ()) ~f:(fun i acc arg ->
     let* () = acc in
     let reg = List.nth arg_regs i in
-    match Base.Map.find spilled_locs i with
-    | Some loc -> load_into_reg reg loc
-    | None -> gen_imm reg arg)
+    load_arg_into_reg spilled_locs i arg reg)
 ;;
 
 let push_stack_args stack_args =
@@ -175,6 +186,14 @@ let push_stack_args stack_args =
         append (sd t0 (sp, offset)))
     in
     return stack_bytes)
+;;
+
+let store_args_on_stack args spilled =
+  Base.List.foldi args ~init:(return ()) ~f:(fun i acc arg ->
+    let* () = acc in
+    let offset = i * word_size in
+    let* () = load_arg_into_reg spilled i arg t0 in
+    append (sd t0 (sp, offset)))
 ;;
 
 let gen_call_with_regs dst regs args spilled symbol =
@@ -202,18 +221,7 @@ let gen_via_apply_nargs dst fname nargs args spilled =
   let* () = gen_imm a0 (ImmediateVar fname) in
   let* () = append (li a1 nargs) in
   let* () = append (addi sp sp (-argv_bytes)) in
-  let* () =
-    Base.List.foldi args ~init:(return ()) ~f:(fun i acc arg ->
-      let* () = acc in
-      let offset = i * word_size in
-      let src =
-        match Base.Map.find spilled i with
-        | Some loc -> load_into_reg t0 loc
-        | None -> gen_imm t0 arg
-      in
-      let* () = src in
-      append (sd t0 (sp, offset)))
-  in
+  let* () = store_args_on_stack args spilled in
   let* () = append (mv a2 sp) in
   let* () = append (call "eml_applyN") in
   let* () = copy_result_to dst in
@@ -237,24 +245,23 @@ let rec gen_invocation dst fname args =
 
 and gen_curried_call dst fname _arity first_args rest_args =
   let* part_name = fresh_partial in
-  let* () =
-    gen_cexpr
-      dst
-      (ComplexApp (ImmediateVar fname, List.hd first_args, List.tl first_args))
-  in
-  let* loc = store_reg_into_frame dst in
-  let* () = modify_env (fun env -> Base.Map.set env ~key:part_name ~data:loc) in
-  (* Apply each rest_arg one at a time (eml_applyN expects one application per call) *)
-  let rec apply_rest = function
-    | [] -> return ()
-    | [ arg ] -> gen_cexpr dst (ComplexApp (ImmediateVar part_name, arg, []))
-    | arg :: rest ->
-      let* () = gen_cexpr dst (ComplexApp (ImmediateVar part_name, arg, [])) in
-      let* loc' = store_reg_into_frame dst in
-      let* () = modify_env (fun env -> Base.Map.set env ~key:part_name ~data:loc') in
-      apply_rest rest
-  in
-  apply_rest rest_args
+  match first_args with
+  | [] -> fail "gen_curried_call: expected at least one initial argument"
+  | first_arg :: first_rest ->
+    let* () = gen_cexpr dst (ComplexApp (ImmediateVar fname, first_arg, first_rest)) in
+    let* loc = store_reg_into_frame dst in
+    let* () = bind_env part_name loc in
+    (* Apply each rest_arg one at a time (eml_applyN expects one application per call) *)
+    let rec apply_rest = function
+      | [] -> return ()
+      | [ arg ] -> gen_cexpr dst (ComplexApp (ImmediateVar part_name, arg, []))
+      | arg :: rest ->
+        let* () = gen_cexpr dst (ComplexApp (ImmediateVar part_name, arg, [])) in
+        let* loc' = store_reg_into_frame dst in
+        let* () = bind_env part_name loc' in
+        apply_rest rest
+    in
+    apply_rest rest_args
 
 and gen_unit dst = append (li dst (tag_int 0))
 
@@ -303,7 +310,7 @@ and spill_tuple_var_if_in_reg = function
     (match Base.Map.find env name with
      | Some (Loc_reg _) ->
        let* loc = store_reg_into_frame result_reg in
-       modify_env (fun env -> Base.Map.set env ~key:name ~data:loc)
+       bind_env name loc
      | _ -> return ())
   | _ -> return ()
 
@@ -335,18 +342,7 @@ and gen_tuple dst e1 e2 rest =
   let* spilled = spill_dangerous_args state elts in
   let array_bytes = argc * word_size in
   let* () = append (addi sp sp (-array_bytes)) in
-  let* () =
-    Base.List.foldi elts ~init:(return ()) ~f:(fun i acc elt ->
-      let* () = acc in
-      let offset = i * word_size in
-      let src =
-        match Base.Map.find spilled i with
-        | Some loc -> load_into_reg t0 loc
-        | None -> gen_imm t0 elt
-      in
-      let* () = src in
-      append (sd t0 (sp, offset)))
-  in
+  let* () = store_args_on_stack elts spilled in
   let* () = append (li result_reg argc) in
   let* () = append (addi (List.nth arg_regs 1) sp 0) in
   let* () = append (call "create_tuple") in
@@ -375,53 +371,37 @@ and gen_anf dst = function
     let* () = evacuate_reg result_reg in
     let* () = gen_cexpr result_reg rhs in
     let* loc = store_reg_into_frame result_reg in
-    let* () = modify_env (fun env -> Base.Map.set env ~key:name ~data:loc) in
+    let* () = bind_env name loc in
     gen_anf dst cont
 ;;
 
-let bind_param_to_reg env i = function
+let bind_param env i = function
   | ImmediateVar name ->
-    let r = List.nth arg_regs i in
-    return (Base.Map.set env ~key:name ~data:(Loc_reg r))
-  | _ -> fail "unsupported pattern"
-;;
-
-let bind_param_to_stack env i = function
-  | ImmediateVar name ->
-    let off = (i + 2) * word_size in
-    return (Base.Map.set env ~key:name ~data:(Loc_mem (fp, off)))
+    let loc =
+      if i < arg_regs_count
+      then Loc_reg (List.nth arg_regs i)
+      else Loc_mem (fp, ((i - arg_regs_count) + 2) * word_size)
+    in
+    return (Base.Map.set env ~key:name ~data:loc)
   | _ -> fail "unsupported pattern"
 ;;
 
 let flush_instr_buffer ppf =
-  let get_instr_buffer =
-    let* st = get in
-    return st.instr_buffer
-  in
-  let clear_instr_buffer = modify (fun st -> { st with instr_buffer = [] }) in
-  let* buf = get_instr_buffer in
-  let* () = clear_instr_buffer in
+  let* st = get in
+  let buf = st.instr_buffer in
+  let* () = put { st with instr_buffer = [] } in
   let () = List.iter (fun item -> format_item ppf item) (List.rev buf) in
   return ()
 ;;
 
 let gen_func ~enable_gc func_name params body frame_sz ppf =
   fprintf ppf "\n  .globl %s\n  .type %s, @function\n" func_name func_name;
-  let args = List.length params in
-  let params_reg, params_stack =
-    ( Base.List.take params (min args arg_regs_count)
-    , Base.List.drop params (min args arg_regs_count) )
-  in
+  let params_reg = Base.List.take params (min (List.length params) arg_regs_count) in
   let env0 = Base.Map.empty (module Base.String) in
   let* env =
-    Base.List.foldi params_reg ~init:(return env0) ~f:(fun i acc p ->
+    Base.List.foldi params ~init:(return env0) ~f:(fun i acc p ->
       let* e = acc in
-      bind_param_to_reg e i p)
-  in
-  let* env =
-    Base.List.foldi params_stack ~init:(return env) ~f:(fun i acc p ->
-      let* e = acc in
-      bind_param_to_stack e i p)
+      bind_param e i p)
   in
   let* () = set_env env in
   let* () = append (prologue ~enable_gc ~name:func_name ~stack_size:frame_sz) in
