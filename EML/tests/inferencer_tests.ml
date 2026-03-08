@@ -198,3 +198,116 @@ let%expect_test "test_option_type_error" =
   [%expect {|Infer error. Failed to unify types: bool and int.|}]
 ;;
 
+
+let%expect_test "test_polymorphic_identity" =
+  pretty_printer_parse_and_infer
+    {| let id x = x
+let a = id 1
+let b = id true |};
+  [%expect
+    {|
+    val a: int
+    val b: bool
+    val id: t0 -> t0|}]
+;;
+
+let%expect_test "test_polymorphic_tuple_use" =
+  pretty_printer_parse_and_infer
+    {| let id x = x
+let pair = (id 1, id true) |};
+  [%expect
+    {|
+    val id: t0 -> t0
+    val pair: (int * bool)|}]
+;;
+
+let%expect_test "test_higher_order_function" =
+  pretty_printer_parse_and_infer
+    {| let apply f x = f x
+let inc x = x + 1
+let main = apply inc 10 |};
+  [%expect
+    {|
+    val apply: (t1 -> t2) -> t1 -> t2
+    val inc: int -> int
+    val main: int|}]
+;;
+
+let%expect_test "test_lambda_returning_lambda" =
+  pretty_printer_parse_and_infer
+    {| let add x = fun y -> x + y
+let f = add 5 |};
+  [%expect
+    {|
+    val add: int -> int -> int
+    val f: int -> int|}]
+;;
+
+let%expect_test "test_partial_application" =
+  pretty_printer_parse_and_infer
+    {| let add x y = x + y
+let inc = add 1
+let main = inc 10 |};
+  [%expect
+    {|
+    val add: int -> int -> int
+    val inc: int -> int
+    val main: int|}]
+;;
+
+let%expect_test "test_tuple_pattern" =
+  pretty_printer_parse_and_infer
+    {| let sum_pair (x, y) = x + y
+let main = sum_pair (3, 4) |};
+  [%expect
+    {|
+    val main: int
+    val sum_pair: (int * int) -> int|}]
+;;
+
+let%expect_test "test_nested_let_scope" =
+  pretty_printer_parse_and_infer
+    {| let x = 10
+let f y =
+  let x = y + 1 in
+  x + y
+let main = f 5 |};
+  [%expect
+    {|
+    val f: int -> int
+    val main: int
+    val x: int|}]
+;;
+
+let%expect_test "test_function_composition" =
+  pretty_printer_parse_and_infer
+    {| let compose f g x = f (g x)
+let inc x = x + 1
+let double x = x * 2
+let main = compose inc double 10 |};
+  [%expect
+    {|
+    val compose: (t3 -> t4) -> (t2 -> t3) -> t2 -> t4
+    val double: int -> int
+    val inc: int -> int
+    val main: int|}]
+;;
+
+let%expect_test "test_occurs_check_error" =
+  pretty_printer_parse_and_infer
+    {| fun x -> x x |};
+  [%expect
+    {|Infer error. Occurs check failed. Type variable 't0' occurs inside t0 -> t1.|}]
+;;
+
+let%expect_test "test_list_polymorphism" =
+  pretty_printer_parse_and_infer
+    {| let singleton x = [x]
+let a = singleton 1
+let b = singleton true |};
+  [%expect
+    {|
+    val a: int list
+    val b: bool list
+    val singleton: t0 -> t0 list|}]
+;;
