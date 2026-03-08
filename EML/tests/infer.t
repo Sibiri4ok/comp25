@@ -95,3 +95,22 @@ SPDX-License-Identifier: LGPL-3.0-or-later
   val meven: int -> int
   val modd: int -> int
   val tie: (int -> int * int -> int)
+
+  $ make infer many_tests/do_not_type/001.ml 2>&1 | sed -n '1p'
+  Inferencer error: Unbound variable 'fac'.
+
+  $ make infer many_tests/do_not_type/002if.ml 2>&1 | sed -n '1p'
+  Inferencer error: Failed to unify types: int and bool.
+
+  $ make infer many_tests/do_not_type/003occurs.ml 2>&1 | sed -n '1p'
+  Inferencer error: Occurs check failed. Type variable 't1' occurs inside t1 -> t3.
+
+  $ make infer many_tests/do_not_type/004let_poly.ml 2>&1 | sed -n '1p'
+  Inferencer error: Failed to unify types: int and bool.
+
+  $ make infer many_tests/do_not_type/015tuples.ml 2>&1 | sed -n '1p'
+  Inferencer error: Left-hand side error: Only variables are allowed on the left-hand side of let rec.
+
+  $ make infer many_tests/do_not_type/099.ml 2>&1 | sed -n '1p'
+  Inferencer error: Left-hand side error: Only variables are allowed on the left-hand side of let rec.
+

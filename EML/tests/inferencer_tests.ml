@@ -98,10 +98,6 @@ let main = id 10 |};
     val main: int|}]
 ;;
 
-let%expect_test "test_unbound_variable_error" =
-  pretty_printer_parse_and_infer {| let main = x |};
-  [%expect {|Infer error. Unbound variable 'x'.|}]
-;;
 
 let%expect_test "test_rec_rhs_error" =
   pretty_printer_parse_and_infer {| let rec x = 1 |};
@@ -141,5 +137,64 @@ let%expect_test "test_annotation_mismatch_error" =
 let%expect_test "test_unexpected_function_error_branch" =
   pretty_printer_parse_and_infer {| let x = not 1 |};
   [%expect {|Infer error. Failed to unify types: int and bool.|}]
+;;
+
+let%expect_test "test_if_without_else_returns_unit_branch" =
+  pretty_printer_parse_and_infer {| let x = if true then 1 |};
+  [%expect {|Infer error. Failed to unify types: int and unit.|}]
+;;
+
+let%expect_test "test_unbound_var" =
+  pretty_printer_parse_and_infer "let f = x";
+  [%expect {|Infer error. Unbound variable 'x'.|}]
+;;
+
+let%expect_test "test_annotate" =
+  pretty_printer_parse_and_infer "let sum = fun (x : int) (y : int) -> x + y";
+  [%expect {|val sum: int -> int -> int|}]
+;;
+
+let%expect_test "test_annotate_fac" =
+  pretty_printer_parse_and_infer
+    "let rec fac = fun (n : int) (acc : int) -> if n < 2 then acc else fac (n-1) (acc * \
+     n);;";
+  [%expect {|val fac: int -> int -> int|}]
+;;
+
+let%expect_test "test_program_1" =
+  pretty_printer_parse_and_infer
+    "let div = fun x y -> x / y \n\
+    \     let sum = fun x y -> x + y\n\
+    \     let res = fun x y z -> div x (sum y z)";
+  [%expect
+    {|
+    val div: int -> int -> int
+    val res: int -> int -> int -> int
+    val sum: int -> int -> int|}]
+;;
+
+let%expect_test "test_program_2" =
+  pretty_printer_parse_and_infer
+    "let square = fun x -> x * x\n\
+    \                                  let result = square 10";
+  [%expect {|
+    val result: int
+    val square: int -> int|}]
+;;
+
+let%expect_test "test_annotate_error" =
+  pretty_printer_parse_and_infer "let sum (x : int) (y : string) = x + y";
+  [%expect {|Infer error. Failed to unify types: string and int.|}]
+;;
+
+let%expect_test "test_unification_types" =
+  pretty_printer_parse_and_infer "fun x -> x + true";
+  [%expect {|Infer error. Failed to unify types: bool and int.|}]
+;;
+
+let%expect_test "test_option_type_error" =
+  pretty_printer_parse_and_infer
+    "let f x = Some (x + 1) in let g y = Some (y && true) in f = g";
+  [%expect {|Infer error. Failed to unify types: bool and int.|}]
 ;;
 
