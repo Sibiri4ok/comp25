@@ -6,13 +6,20 @@ open Stdio
 open EML_lib
 open Frontend
 
+type backend =
+  | Ricsv
+  | Llvm
+
 type opts =
   { input_file : string option
   ; output_file : string option
   ; enable_gc : bool
+  ; backend : backend
   }
 
-let default_opts = { input_file = None; output_file = None; enable_gc = false }
+let default_opts =
+  { input_file = None; output_file = None; enable_gc = false; backend = Ricsv }
+;;
 
 type env = Inferencer.TypeEnv.t
 
@@ -45,11 +52,15 @@ let with_middleend ast _env' f : (env, unit) Result.t =
   | Ok anf_ast -> f anf_ast
 ;;
 
-let run_compile ~enable_gc text env oc : (env, unit) Result.t =
+let run_compile text env oc ~backend ~enable_gc : (env, unit) Result.t =
   with_frontend text env oc (fun ast env' _out_list ->
     with_middleend ast env' (fun anf_ast ->
       let ppf = Format.formatter_of_out_channel oc in
-      let res = Backend.Ricsv.Runner.gen_program ~enable_gc ppf anf_ast in
+      let res =
+        match backend with
+        | Ricsv -> Backend.Ricsv.Runner.gen_program ~enable_gc ppf anf_ast
+        | Llvm -> Backend.Llvm_ir.Runner.gen_program ~enable_gc ppf anf_ast
+      in
       match res with
       | Ok () -> Ok env'
       | Error msg ->
@@ -91,10 +102,15 @@ let parse_args () : (opts, unit) Result.t =
   let input_file = ref default_opts.input_file in
   let output_file = ref default_opts.output_file in
   let enable_gc = ref default_opts.enable_gc in
+  let backend = ref Ricsv in
   let positional_seen = ref false in
   let open Arg in
   let spec =
-    [ "-fromfile", String (fun s -> input_file := Some s), " <file> Read source from file"
+    [ ( "-backend"
+      , Symbol
+          ([ "ricsv"; "llvm" ], fun s -> backend := if s = "llvm" then Llvm else Ricsv)
+      , " <ricsv|llvm> Code generation backend (default: ricsv)" )
+    ; "-fromfile", String (fun s -> input_file := Some s), " <file> Read source from file"
     ; "-o", String (fun s -> output_file := Some s), " <file> Write output to file"
     ; "-gc", Set enable_gc, " Enable GC runtime support"
     ]
@@ -102,7 +118,13 @@ let parse_args () : (opts, unit) Result.t =
   parse spec (fun _ -> positional_seen := true) "Compiler for custom language";
   if !positional_seen
   then Error ()
-  else Ok { input_file = !input_file; output_file = !output_file; enable_gc = !enable_gc }
+  else
+    Ok
+      { input_file = !input_file
+      ; output_file = !output_file
+      ; enable_gc = !enable_gc
+      ; backend = !backend
+      }
 ;;
 
 let () =
