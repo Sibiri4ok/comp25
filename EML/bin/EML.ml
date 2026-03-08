@@ -15,10 +15,16 @@ type opts =
   ; output_file : string option
   ; enable_gc : bool
   ; backend : backend
+  ; infer_only : bool
   }
 
 let default_opts =
-  { input_file = None; output_file = None; enable_gc = false; backend = Ricsv }
+  { input_file = None
+  ; output_file = None
+  ; enable_gc = false
+  ; backend = Ricsv
+  ; infer_only = false
+  }
 ;;
 
 type env = Inferencer.TypeEnv.t
@@ -68,13 +74,36 @@ let run_compile text env oc ~backend ~enable_gc : (env, unit) Result.t =
         Error ()))
 ;;
 
+let run_infer_only text env oc : (env, unit) Result.t =
+  match Frontend.Runner.run text env with
+  | Error (Frontend.Runner.Parse s) ->
+    report_parse_error oc s;
+    Error ()
+  | Error (Frontend.Runner.Infer e) ->
+    report_infer_error oc e;
+    Error ()
+  | Ok (_ast, env', _out_list) ->
+    let filtered_env =
+      Base.Map.filter_keys env' ~f:(fun key -> not (Base.Map.mem env key))
+    in
+    Base.Map.iteri filtered_env ~f:(fun ~key ~data ->
+      match data with
+      | Inferencer.Scheme.Scheme (_, ty) ->
+        Out_channel.output_string
+          oc
+          (Format.asprintf "val %s: %a\n" key Frontend.Ast.pp_ty ty));
+    Ok env'
+;;
+
 (* ------------------------------------------------------------------------- *)
 (* Compiler entry point                                                      *)
 (* ------------------------------------------------------------------------- *)
 
 let compiler opts : (unit, unit) Result.t =
   let run text env oc =
-    run_compile text env oc ~backend:opts.backend ~enable_gc:opts.enable_gc
+    if opts.infer_only
+    then run_infer_only text env oc
+    else run_compile text env oc ~backend:opts.backend ~enable_gc:opts.enable_gc
   in
   let env0 =
     if opts.enable_gc
@@ -105,6 +134,7 @@ let parse_args () : (opts, unit) Result.t =
   let output_file = ref default_opts.output_file in
   let enable_gc = ref default_opts.enable_gc in
   let backend = ref Ricsv in
+  let infer_only = ref default_opts.infer_only in
   let positional_seen = ref false in
   let open Arg in
   let spec =
@@ -115,6 +145,7 @@ let parse_args () : (opts, unit) Result.t =
     ; "-fromfile", String (fun s -> input_file := Some s), " <file> Read source from file"
     ; "-o", String (fun s -> output_file := Some s), " <file> Write output to file"
     ; "-gc", Set enable_gc, " Enable GC runtime support"
+    ; "-infer", Set infer_only, " Run only type inference and print inferred types"
     ]
   in
   parse spec (fun _ -> positional_seen := true) "Compiler for custom language";
@@ -126,6 +157,7 @@ let parse_args () : (opts, unit) Result.t =
       ; output_file = !output_file
       ; enable_gc = !enable_gc
       ; backend = !backend
+      ; infer_only = !infer_only
       }
 ;;
 

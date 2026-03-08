@@ -18,6 +18,15 @@
   (source_tree many_tests)))
 
 (cram
+ (applies_to infer)
+ (deps
+  (file ../bin/EML.exe)
+  (file Makefile)
+  (file ../lib/runtime/rv64_runtime.a)
+  (source_tree gc_tests)
+  (source_tree many_tests)))
+
+(cram
  (applies_to closure_tests)
  (deps
   (file ../bin/EML.exe)

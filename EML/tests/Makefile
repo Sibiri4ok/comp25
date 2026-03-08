@@ -4,12 +4,12 @@ EML_ROOT ?= $(CURDIR)/..
 EML_BIN ?= $(if $(findstring _build,$(EML_ROOT)),$(EML_ROOT)/bin/EML.exe,$(EML_ROOT)/_build/default/bin/EML.exe)
 RUNTIME_A := $(if $(wildcard ../lib/runtime/rv64_runtime.a),../lib/runtime/rv64_runtime.a,../_build/default/lib/runtime/rv64_runtime.a)
 
-ARGS := $(filter-out compile compile_llvm,$(MAKECMDGOALS))
+ARGS := $(filter-out compile infer compile_llvm,$(MAKECMDGOALS))
 INPUT := $(firstword $(ARGS))
 EXTRA_GOALS := $(ARGS)
 GC_FLAG := $(if $(filter 1 true yes on,$(GC)),-gc,)
 
-.PHONY: compile compile_llvm $(EXTRA_GOALS)
+.PHONY: compile infer compile_llvm $(EXTRA_GOALS)
 
 compile:
 	@set -euo pipefail; \
@@ -30,6 +30,15 @@ compile:
 	riscv64-linux-gnu-as -march=rv64gc "$$ASM_FILE" -o "$$OBJ_FILE"; \
 	riscv64-linux-gnu-gcc "$$OBJ_FILE" "$(RUNTIME_A)" -o "$$EXE_FILE"; \
 	qemu-riscv64 -L /usr/riscv64-linux-gnu -cpu rv64 "$$EXE_FILE"
+
+infer:
+	@set -euo pipefail; \
+	FILE="$(INPUT)"; \
+	[[ -n "$$FILE" ]] || { echo "Usage: make infer [GC=1] <file.ml>" >&2; exit 1; }; \
+	[[ "$$FILE" != *.s ]] || { echo "Infer mode expects .ml source, got assembly: $$FILE" >&2; exit 1; }; \
+	[[ -f "$$FILE" ]] || { echo "Source file not found: $$FILE" >&2; exit 1; }; \
+	SRC="$$(realpath "$$FILE")"; \
+	"$(EML_BIN)" $(GC_FLAG) -infer -fromfile "$$SRC"
 
 # LLVM: compile source to .ll (no link/run; needs llvm_call_indirect for full run)
 compile_llvm:

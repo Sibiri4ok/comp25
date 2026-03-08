@@ -46,13 +46,24 @@ module ResultMonad : sig
   end
 
   val fresh : int t
+  val current_level : int t
+  val enter_level : unit t
+  val leave_level : unit t
+  val set_var_level : string -> int -> unit t
+  val get_var_level : string -> int option t
   val run : 'a t -> ('a, error) Result.t
 
   module RMap : sig
     val fold : ('a, 'b, 'c) Map.t -> init:'d t -> f:('a -> 'b -> 'd -> 'd t) -> 'd t
   end
 end = struct
-  type 'a t = int -> int * ('a, error) Result.t
+  type state =
+    { counter : int
+    ; current_level : int
+    ; var_levels : (string, int, String.comparator_witness) Map.t
+    }
+
+  type 'a t = state -> state * ('a, error) Result.t
 
   let ( >>= ) m f state =
     let last, r = m state in
@@ -83,8 +94,41 @@ end = struct
     ;;
   end
 
-  let fresh : int t = fun last -> last + 1, Result.return last
-  let run monad = snd (monad 0)
+  let fresh : int t =
+    fun st ->
+    { st with counter = st.counter + 1 }, Result.return st.counter
+  ;;
+
+  let current_level : int t = fun st -> st, Result.return st.current_level
+
+  let enter_level : unit t =
+    fun st ->
+    { st with current_level = st.current_level + 1 }, Result.return ()
+  ;;
+
+  let leave_level : unit t =
+    fun st ->
+    { st with current_level = max 0 (st.current_level - 1) }, Result.return ()
+  ;;
+
+  let set_var_level var lvl : unit t =
+    fun st ->
+    ( { st with var_levels = Map.set st.var_levels ~key:var ~data:lvl }
+    , Result.return () )
+  ;;
+
+  let get_var_level var : int option t =
+    fun st -> st, Result.return (Map.find st.var_levels var)
+  ;;
+
+  let run monad =
+    snd
+      (monad
+         { counter = 0
+         ; current_level = 0
+         ; var_levels = Map.empty (module String)
+         })
+  ;;
 end
 
 module Type = struct
@@ -131,7 +175,21 @@ end = struct
   let mapping key value =
     if Type.occurs_in key value
     then fail (OccursCheck (key, value))
-    else return (key, value)
+    else (
+      let* key_lvl = get_var_level key in
+      let vars = Type.free_vars value |> VarSet.elements in
+      let* () =
+        match key_lvl with
+        | None -> return ()
+        | Some key_lvl ->
+          List.fold_left vars ~init:(return ()) ~f:(fun acc v ->
+            let* () = acc in
+            let* v_lvl = get_var_level v in
+            match v_lvl with
+            | Some v_lvl when v_lvl > key_lvl -> set_var_level v key_lvl
+            | _ -> return ())
+      in
+      return (key, value))
   ;;
 
   let singleton key value =
@@ -268,7 +326,13 @@ end
 open ResultMonad
 open ResultMonad.Syntax
 
-let fresh_var = fresh >>| fun n -> TyVar ("t" ^ Int.to_string n)
+let fresh_var =
+  let* n = fresh in
+  let* lvl = current_level in
+  let name = "t" ^ Int.to_string n in
+  let* () = set_var_level name lvl in
+  return (TyVar name)
+;;
 
 let instantiate : Scheme.t -> ty ResultMonad.t =
   fun (Scheme (vars, ty)) ->
@@ -282,9 +346,18 @@ let instantiate : Scheme.t -> ty ResultMonad.t =
     (return ty)
 ;;
 
-let generalize env ty =
-  let free = VarSet.diff (Type.free_vars ty) (TypeEnv.free_vars env) in
-  Scheme.Scheme (free, ty)
+let generalize _env ty =
+  let* lvl = current_level in
+  let vars = Type.free_vars ty |> VarSet.elements in
+  let* generic =
+    List.fold_left vars ~init:(return VarSet.empty) ~f:(fun acc v ->
+      let* acc = acc in
+      let* v_lvl = get_var_level v in
+      match v_lvl with
+      | Some v_lvl when v_lvl > lvl -> return (VarSet.add v acc)
+      | _ -> return acc)
+  in
+  return (Scheme.Scheme (generic, ty))
 ;;
 
 let infer_const = function
@@ -481,15 +554,19 @@ let rec infer_expr env = function
         | [] -> fail (SeveralBounds "inferred empty list type")
         | ty :: _ -> return (total_subst, TyList ty)))
   | ExpLet (NonRec, (PatVariable x, expr1), _, expr2) ->
+    let* () = enter_level in
     let* subst1, ty1 = infer_expr env expr1 in
+    let* () = leave_level in
     let env2 = TypeEnv.apply subst1 env in
-    let ty_gen = generalize env2 ty1 in
+    let* ty_gen = generalize env2 ty1 in
     let env3 = TypeEnv.extend env x ty_gen in
     let* subst2, ty2 = infer_expr (TypeEnv.apply subst1 env3) expr2 in
     let* total_subst = Substitution.compose subst1 subst2 in
     return (total_subst, ty2)
   | ExpLet (NonRec, (pattern, expr1), bindings, expr2) ->
+    let* () = enter_level in
     let* subst1, ty1 = infer_expr env expr1 in
+    let* () = leave_level in
     let* subst2, ty_pat, env1 = infer_pattern env pattern in
     let* subst = Substitution.compose subst1 subst2 in
     let* unified_subst = Substitution.unify (Substitution.apply subst ty_pat) ty1 in
@@ -525,12 +602,14 @@ let rec infer_expr env = function
     in
     let* tv = fresh_var in
     let env2 = TypeEnv.extend env x (Scheme.Scheme (VarSet.empty, tv)) in
+    let* () = enter_level in
     let* subst1, ty1 = infer_expr env2 expr1 in
+    let* () = leave_level in
     let* subst2 = Substitution.unify (Substitution.apply subst1 tv) ty1 in
     let* subst_total = Substitution.compose subst1 subst2 in
     let env3 = TypeEnv.apply subst_total env in
     let env4 = TypeEnv.apply subst1 env3 in
-    let ty_gen = generalize env4 (Substitution.apply subst_total tv) in
+    let* ty_gen = generalize env4 (Substitution.apply subst_total tv) in
     let* subst3, ty2 = infer_expr (TypeEnv.extend env4 x ty_gen) expr2 in
     let* subst_total = Substitution.compose subst_total subst3 in
     return (subst_total, ty2)
@@ -550,7 +629,9 @@ let rec infer_expr env = function
               fail (LHS "Only variables are allowed on the left-hand side of let rec")
           in
           let* env_acc, _ = acc_env in
+          let* () = enter_level in
           let* subst_expr, ty_expr = infer_expr env_acc expr in
+          let* () = leave_level in
           let* subst_pattern, ty_pat, env_pat = infer_pattern env_acc pat in
           let* subst = Substitution.compose subst_expr subst_pattern in
           let* unified_subst = Substitution.unify ty_expr ty_pat in
@@ -691,11 +772,13 @@ let infer_structure_item env = function
     in
     let* tv = fresh_var in
     let env = TypeEnv.extend env x (Scheme.Scheme (VarSet.empty, tv)) in
+    let* () = enter_level in
     let* subst, ty = infer_expr env expr in
+    let* () = leave_level in
     let* subst2 = Substitution.unify (Substitution.apply subst tv) ty in
     let* composed_subst = Substitution.compose subst subst2 in
     let env2 = TypeEnv.apply composed_subst env in
-    let generalized_ty = generalize env2 (Substitution.apply composed_subst ty) in
+    let* generalized_ty = generalize env2 (Substitution.apply composed_subst ty) in
     let env = TypeEnv.extend env2 x generalized_ty in
     return (composed_subst, env)
   | SValue (Rec, value_binding, value_bindings) ->
@@ -737,9 +820,11 @@ let infer_structure_item env = function
     in
     return (subst_acc, env_ext)
   | SValue (NonRec, (PatVariable x, expr), _) ->
+    let* () = enter_level in
     let* subst, ty = infer_expr env expr in
+    let* () = leave_level in
     let env2 = TypeEnv.apply subst env in
-    let generalized_ty = generalize env2 ty in
+    let* generalized_ty = generalize env2 ty in
     let env = TypeEnv.extend (TypeEnv.apply subst env) x generalized_ty in
     return (subst, env)
   | SValue (NonRec, (pattern, expr), _) ->
