@@ -1,50 +1,36 @@
 SHELL := /bin/bash
 
-RUNTIME_A_SANDBOX := ../lib/runtime/rv64_runtime.a
-RUNTIME_A_DEFAULT := ../_build/default/lib/runtime/rv64_runtime.a
 EML_BIN ?= /home/danil/comp25/EML/_build/default/bin/EML.exe
-
-ARGS := $(filter-out compile,$(MAKECMDGOALS))
-USE_GC := $(if $(filter 1 true yes on,$(GC)),1,0)
-INPUT := $(firstword $(ARGS))
-EXTRA_GOALS := $(ARGS)
+RUNTIME_A := $(firstword $(wildcard ../lib/runtime/rv64_runtime.a ../_build/default/lib/runtime/rv64_runtime.a))
+INPUT := $(firstword $(filter-out compile,$(MAKECMDGOALS)))
+EXTRA_GOALS := $(filter-out compile,$(MAKECMDGOALS))
+GC_ON := $(filter 1 true yes on,$(GC))
 
 .PHONY: compile $(EXTRA_GOALS)
 
 compile:
 	@set -euo pipefail; \
-	FILE="$(INPUT)"; \
-	if [[ -z "$$FILE" ]]; then \
-		echo "Usage: make compile [GC=1] <file.ml|file.s>" >&2; \
-		exit 1; \
-	fi; \
-	if [[ "$$FILE" == *.s ]]; then \
-		ASM_FILE="$$FILE"; \
-	else \
-		if [[ -f "$$FILE" ]]; then SRC="$$FILE"; \
-		else echo "Source file not found: $$FILE" >&2; exit 1; fi; \
-		SRC="$$(realpath "$$SRC")"; \
-		TMP_SRC_DIR="$$(mktemp -d)"; \
-		trap 'rm -rf "$$TMP_SRC_DIR"' EXIT; \
-		ASM_FILE="$$TMP_SRC_DIR/prog.s"; \
-		if [[ "$(USE_GC)" == "1" ]]; then \
-			"$(EML_BIN)" -gc -fromfile "$$SRC" -o "$$ASM_FILE"; \
+	FILE="$(INPUT)"; [[ -n "$$FILE" ]] || { echo "Usage: make compile [GC=1] <file.ml|file.s>" >&2; exit 1; }; \
+	SRC="$$FILE"; \
+	[[ -f "$$SRC" ]] || { \
+		if [[ "$$FILE" == manytests/* && -f "many_tests/$${FILE#manytests/}" ]]; then \
+			SRC="many_tests/$${FILE#manytests/}"; \
+		elif [[ "$$FILE" == many_tests/* && -f "manytests/$${FILE#many_tests/}" ]]; then \
+			SRC="manytests/$${FILE#many_tests/}"; \
 		else \
-			"$(EML_BIN)" -fromfile "$$SRC" -o "$$ASM_FILE"; \
+			echo "Source file not found: $$FILE" >&2; exit 1; \
 		fi; \
+	}; \
+	TMP_SRC="$$(mktemp -d)"; TMP_BIN="$$(mktemp -d)"; trap 'rm -rf "$$TMP_SRC" "$$TMP_BIN"' EXIT; \
+	ASM_FILE="$$SRC"; \
+	if [[ "$$FILE" != *.s ]]; then \
+		ASM_FILE="$$TMP_SRC/prog.s"; SRC="$$(realpath "$$SRC")"; \
+		"$(EML_BIN)" $$( [[ -n "$(GC_ON)" ]] && echo -gc ) -fromfile "$$SRC" -o "$$ASM_FILE"; \
 	fi; \
-	if [[ -f "$(RUNTIME_A_SANDBOX)" ]]; then \
-		RUNTIME_A="$(RUNTIME_A_SANDBOX)"; \
-	else \
-		RUNTIME_A="$(RUNTIME_A_DEFAULT)"; \
-	fi; \
-	TMP_BIN_DIR="$$(mktemp -d)"; \
-	trap 'rm -rf "$$TMP_BIN_DIR"' EXIT; \
-	OBJ_FILE="$$TMP_BIN_DIR/prog.o"; \
-	EXE_FILE="$$TMP_BIN_DIR/prog.exe"; \
-	riscv64-linux-gnu-as -march=rv64gc "$$ASM_FILE" -o "$$OBJ_FILE"; \
-	riscv64-linux-gnu-gcc "$$OBJ_FILE" "$$RUNTIME_A" -o "$$EXE_FILE"; \
-	qemu-riscv64 -L /usr/riscv64-linux-gnu -cpu rv64 "$$EXE_FILE"
+	OBJ="$$TMP_BIN/prog.o"; EXE="$$TMP_BIN/prog.exe"; \
+	riscv64-linux-gnu-as -march=rv64gc "$$ASM_FILE" -o "$$OBJ"; \
+	riscv64-linux-gnu-gcc "$$OBJ" "$(RUNTIME_A)" -o "$$EXE"; \
+	qemu-riscv64 -L /usr/riscv64-linux-gnu -cpu rv64 "$$EXE"
 
 $(EXTRA_GOALS):
 	@:

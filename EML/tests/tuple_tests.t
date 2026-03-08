@@ -11,7 +11,8 @@ SPDX-License-Identifier: LGPL-3.0-or-later
   GC    collections: 0
   GC    allocations: 3
   =================
-  42=== GC Status ===
+  42
+  === GC Status ===
   Current allocated: 13
   Total   allocated: 28
   Free        space: 787
@@ -31,7 +32,8 @@ SPDX-License-Identifier: LGPL-3.0-or-later
   GC    collections: 0
   GC    allocations: 4
   =================
-  90=== GC Status ===
+  90
+  === GC Status ===
   Current allocated: 23
   Total   allocated: 48
   Free        space: 777
@@ -51,7 +53,8 @@ SPDX-License-Identifier: LGPL-3.0-or-later
   GC    collections: 0
   GC    allocations: 4
   =================
-  1053=== GC Status ===
+  1053
+  === GC Status ===
   Current allocated: 28
   Total   allocated: 58
   Free        space: 772

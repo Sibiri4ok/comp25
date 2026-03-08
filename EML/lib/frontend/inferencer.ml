@@ -127,16 +127,25 @@ end = struct
   type t = (string, ty, String.comparator_witness) Map.t
 
   let empty = Map.empty (module String)
+  let is_identity_mapping key = function
+    | TyVar v -> String.equal key v
+    | _ -> false
+  ;;
 
   let mapping key value =
-    if Type.occurs_in key value
+    if is_identity_mapping key value
+    then return (key, value)
+    else if Type.occurs_in key value
     then fail (OccursCheck (key, value))
     else return (key, value)
   ;;
 
   let singleton key value =
-    let* key, value = mapping key value in
-    return (Map.singleton (module String) key value)
+    if is_identity_mapping key value
+    then return empty
+    else (
+      let* key, value = mapping key value in
+      return (Map.singleton (module String) key value))
   ;;
 
   let find = Map.find
@@ -189,11 +198,17 @@ end = struct
     match find subst key with
     | None ->
       let value = apply subst value in
-      let* subst2 = singleton key value in
-      RMap.fold subst ~init:(return subst2) ~f:(fun key value acc ->
-        let value = apply subst2 value in
-        let* key, value = mapping key value in
-        return (Map.update acc key ~f:(fun _ -> value)))
+      if is_identity_mapping key value
+      then return subst
+      else (
+        let* subst2 = singleton key value in
+        RMap.fold subst ~init:(return subst2) ~f:(fun key value acc ->
+          let value = apply subst2 value in
+          if is_identity_mapping key value
+          then return acc
+          else (
+            let* key, value = mapping key value in
+            return (Map.update acc key ~f:(fun _ -> value)))))
     | Some value2 ->
       let* subst2 = unify value value2 in
       compose subst subst2
@@ -361,6 +376,21 @@ let rec infer_pattern env = function
   | PatConstruct (name, opt) ->
     (match name, opt with
      | "()", None -> return (Substitution.empty, TyPrim "unit", env)
+     | "[]", None ->
+       let* fresh = fresh_var in
+       return (Substitution.empty, TyList fresh, env)
+     | "::", Some p ->
+       let* sub, typ, env' = infer_pattern env p in
+       let tuple_ty = Substitution.apply sub typ in
+       let* hd_ty = fresh_var in
+       let* tl_ty = fresh_var in
+       let* sub_tuple = Substitution.unify tuple_ty (TyTuple [ hd_ty; tl_ty ]) in
+       let* sub_list = Substitution.unify (Substitution.apply sub_tuple tl_ty) (TyList (Substitution.apply sub_tuple hd_ty)) in
+       let* sub_total = Substitution.compose_all [ sub; sub_tuple; sub_list ] in
+       return
+         ( sub_total
+         , TyList (Substitution.apply sub_total hd_ty)
+         , TypeEnv.apply sub_total env' )
      | "None", None ->
        let* fresh = fresh_var in
        return (Substitution.empty, TyOption fresh, env)
@@ -645,6 +675,18 @@ let rec infer_expr env = function
   | ExpConstruct (name, opt_expr) ->
     (match name, opt_expr with
      | "()", None -> return (Substitution.empty, TyPrim "unit")
+     | "[]", None ->
+       let* tv = fresh_var in
+       return (Substitution.empty, TyList tv)
+     | "::", Some e ->
+       let* subst, ty = infer_expr env e in
+       let tuple_ty = Substitution.apply subst ty in
+       let* hd_ty = fresh_var in
+       let* tl_ty = fresh_var in
+       let* sub_tuple = Substitution.unify tuple_ty (TyTuple [ hd_ty; tl_ty ]) in
+       let* sub_list = Substitution.unify (Substitution.apply sub_tuple tl_ty) (TyList (Substitution.apply sub_tuple hd_ty)) in
+       let* sub_total = Substitution.compose_all [ subst; sub_tuple; sub_list ] in
+       return (sub_total, TyList (Substitution.apply sub_total hd_ty))
      | "None", None ->
        let* tv = fresh_var in
        return (Substitution.empty, TyOption tv)

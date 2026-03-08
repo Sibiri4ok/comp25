@@ -115,6 +115,16 @@ let build_tuple_top_level_bindings tuple_var indices_pats =
        ((bind_id, AnfExpr (ComplexField (ImmediateVar tv, i))) :: inner) @ rest)
 ;;
 
+let bind_pattern_to_var pattern var body_expr =
+  ExpLet (NonRec, (pattern, ExpIdent var), [], body_expr)
+;;
+
+let parse_list_case_pattern = function
+  | PatConstruct ("[]", None) -> Ok (`Nil)
+  | PatConstruct ("::", Some (PatTuple (p_hd, p_tl, []))) -> Ok (`Cons (p_hd, p_tl))
+  | _ -> Error "Only [] and h::tl list patterns are supported in match"
+;;
+
 let rec anf (expr : expr) (k : immediate -> anf_expr t) : anf_expr t =
   match expr with
   | ExpConst c -> k (ImmediateConst c)
@@ -178,6 +188,10 @@ let rec anf (expr : expr) (k : immediate -> anf_expr t) : anf_expr t =
     let* body_anf_expr = anf body (fun imm -> return (AnfExpr (ComplexImmediate imm))) in
     let rec wrap_params current_body = function
       | [] -> return current_body
+      | (PatAny | PatUnit | PatConstruct ("()", None)) :: remaining_params ->
+        let* body_with_rest = wrap_params current_body remaining_params in
+        let* var = fresh in
+        return (AnfExpr (ComplexLambda ([ PatVariable var ], body_with_rest)))
       | ((PatVariable _ | PatConst _) as param) :: remaining_params ->
         let* body_with_rest = wrap_params current_body remaining_params in
         return (AnfExpr (ComplexLambda ([ param ], body_with_rest)))
@@ -205,7 +219,99 @@ let rec anf (expr : expr) (k : immediate -> anf_expr t) : anf_expr t =
     anf_list exprs (fun imm_list -> bind_complex_expr (ComplexList imm_list) k)
   | ExpOption None -> bind_complex_expr ComplexUnit k
   | ExpOption (Some e) -> anf e k
-  | ExpFunction _ | ExpMatch _ -> fail "Match/function cases not implemented"
+  | ExpFunction _ -> fail "Match/function cases not implemented"
+  | ExpMatch (scrut, (pat_first, expr_first), rest_cases) ->
+    let all_cases = (pat_first, expr_first) :: rest_cases in
+    let classify_case (pat, expr) =
+      match parse_list_case_pattern pat with
+      | Ok `Nil -> Ok (`NilCase expr)
+      | Ok (`Cons (p_hd, p_tl)) -> Ok (`ConsCase (p_hd, p_tl, expr))
+      | Error msg -> Error msg
+    in
+    let* nil_case, cons_case =
+      List.fold_left
+        all_cases
+        ~init:(return (None, None))
+        ~f:(fun acc case ->
+          let* nil_acc, cons_acc = acc in
+          match classify_case case with
+          | Error msg -> fail msg
+          | Ok (`NilCase expr) ->
+            if Option.is_some nil_acc then fail "Duplicate [] case in list match"
+            else return (Some expr, cons_acc)
+          | Ok (`ConsCase (p_hd, p_tl, expr)) ->
+            if Option.is_some cons_acc then fail "Duplicate h::tl case in list match"
+            else return (nil_acc, Some (p_hd, p_tl, expr)))
+    in
+    (match nil_case, cons_case with
+     | Some nil_expr, Some (p_hd, p_tl, cons_expr) ->
+       anf scrut (fun scrut_imm ->
+         let* nil_anf =
+           anf nil_expr (fun imm -> return (AnfExpr (ComplexImmediate imm)))
+         in
+         let* cons_anf =
+           let cons_wrapped =
+             bind_pattern_to_var
+               p_hd
+               "__list_hd"
+               (bind_pattern_to_var p_tl "__list_tl" cons_expr)
+           in
+           anf cons_wrapped (fun imm -> return (AnfExpr (ComplexImmediate imm)))
+         in
+         let* scrut_var = fresh in
+         let* tag_var = fresh in
+         let* hd_var = fresh in
+         let* tl_var = fresh in
+         let* cond_var = fresh in
+        let branch =
+          AnfLet
+            ( NonRec
+            , scrut_var
+            , ComplexImmediate scrut_imm
+            , AnfLet
+                ( NonRec
+                , tag_var
+                , ComplexField (ImmediateVar scrut_var, 0)
+                , AnfLet
+                    ( NonRec
+                    , hd_var
+                    , ComplexField (ImmediateVar scrut_var, 1)
+                    , AnfLet
+                        ( NonRec
+                        , tl_var
+                        , ComplexField (ImmediateVar scrut_var, 2)
+                        , AnfLet
+                            ( NonRec
+                            , "__list_hd"
+                            , ComplexImmediate (ImmediateVar hd_var)
+                            , AnfLet
+                                ( NonRec
+                                , "__list_tl"
+                                , ComplexImmediate (ImmediateVar tl_var)
+                                , AnfLet
+                                    ( NonRec
+                                    , cond_var
+                                    , ComplexBinOper
+                                        (Equal, ImmediateVar tag_var, ImmediateConst (ConstInt 0))
+                                    , AnfExpr
+                                        (ComplexBranch
+                                           (ImmediateVar cond_var, nil_anf, cons_anf)) ) ) ) ) ) ) )
+        in
+        return branch)
+     | _ -> fail "List match requires exactly two cases: [] and h::tl")
+  | ExpConstruct ("[]", None) ->
+    bind_complex_expr
+      (ComplexTuple (ImmediateConst (ConstInt 0), ImmediateConst (ConstInt 0), []))
+      k
+  | ExpConstruct ("::", Some e) ->
+    (match e with
+     | ExpTuple (exp_hd, exp_tl, []) ->
+       anf exp_hd (fun imm_hd ->
+         anf exp_tl (fun imm_tl ->
+           bind_complex_expr
+             (ComplexTuple (ImmediateConst (ConstInt 1), imm_hd, [ imm_tl ]))
+             k))
+     | _ -> fail "List constructor :: expects tuple (head, tail)")
   | ExpConstruct _ -> fail "Constructors not implemented"
 
 and anf_list (exprs : expr list) (k : immediate list -> anf_expr t) : anf_expr t =
