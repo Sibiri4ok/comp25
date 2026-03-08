@@ -39,5 +39,5 @@ let predefined_runtime_funcs : runtime_func_sig list =
 ;;
 
 let runtime_primitive_arities : (string * int) list =
-  List.map (fun { name; args } -> name, List.length args) predefined_runtime_funcs
+  List.map (fun { name; args; _ } -> name, List.length args) predefined_runtime_funcs
 ;;

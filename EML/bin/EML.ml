@@ -73,7 +73,9 @@ let run_compile text env oc ~backend ~enable_gc : (env, unit) Result.t =
 (* ------------------------------------------------------------------------- *)
 
 let compiler opts : (unit, unit) Result.t =
-  let run text env oc = run_compile ~enable_gc:opts.enable_gc text env oc in
+  let run text env oc =
+    run_compile text env oc ~backend:opts.backend ~enable_gc:opts.enable_gc
+  in
   let env0 =
     if opts.enable_gc
     then Inferencer.TypeEnv.env_with_gc
