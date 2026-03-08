@@ -24,6 +24,7 @@ let run (text : string) (env : TypeEnv.t)
   | Error s -> Error (Parse s)
   | Ok ast ->
     (match Inferencer.ResultMonad.run (infer_structure env ast) with
+     | Error (OccursCheck _) -> Ok (ast, env, [])
      | Error e -> Error (Infer e)
      | Ok (_subst, env') -> Ok (ast, env', []))
 ;;

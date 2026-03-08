@@ -77,6 +77,31 @@ let get_var = function
 
 let tuple_indices pats = List.mapi pats ~f:(fun i p -> i, p)
 
+let match_list_cases cases =
+  let is_nil = function
+    | PatConstruct ("[]", None) | PatList [] -> true
+    | _ -> false
+  in
+  let is_cons = function
+    | PatConstruct ("::", Some (PatTuple (_, _, []))) -> true
+    | _ -> false
+  in
+  let get_cons_pats = function
+    | PatConstruct ("::", Some (PatTuple (head_pat, tail_pat, []))) -> Some (head_pat, tail_pat)
+    | _ -> None
+  in
+  match cases with
+  | [ (pat1, expr1); (pat2, expr2) ] when is_nil pat1 && is_cons pat2 ->
+    (match get_cons_pats pat2 with
+     | Some (head_pat, tail_pat) -> Some (expr1, head_pat, tail_pat, expr2)
+     | None -> None)
+  | [ (pat1, expr1); (pat2, expr2) ] when is_cons pat1 && is_nil pat2 ->
+    (match get_cons_pats pat1 with
+     | Some (head_pat, tail_pat) -> Some (expr2, head_pat, tail_pat, expr1)
+     | None -> None)
+  | _ -> None
+;;
+
 let build_tuple_lets tuple_var indices_pats body =
   let rec aux tuple_var indices_pats body =
     match indices_pats with
@@ -173,6 +198,12 @@ let rec anf (expr : expr) (k : immediate -> anf_expr t) : anf_expr t =
       | ((PatVariable _ | PatConst _) as param) :: remaining_params ->
         let* body_with_rest = wrap_params current_body remaining_params in
         return (AnfExpr (ComplexLambda ([ param ], body_with_rest)))
+      | (PatAny | PatUnit | PatConstruct ("()", None)) :: remaining_params ->
+        let* body_with_rest = wrap_params current_body remaining_params in
+        let* ignored = fresh in
+        return (AnfExpr (ComplexLambda ([ PatVariable ignored ], body_with_rest)))
+      | PatType (inner_pat, _) :: remaining_params ->
+        wrap_params current_body (inner_pat :: remaining_params)
       | PatTuple (p1, p2, rest_pats) :: remaining_params ->
         let* body_with_rest = wrap_params current_body remaining_params in
         let* var = fresh in
@@ -192,7 +223,40 @@ let rec anf (expr : expr) (k : immediate -> anf_expr t) : anf_expr t =
     anf_list exprs (fun imm_list -> bind_complex_expr (ComplexList imm_list) k)
   | ExpOption None -> bind_complex_expr ComplexUnit k
   | ExpOption (Some e) -> anf e k
-  | ExpFunction _ | ExpMatch _ -> fail "Match/function cases not implemented"
+  | ExpMatch (scrut, first_case, rest_cases) ->
+    (match match_list_cases (first_case :: rest_cases) with
+     | Some (nil_expr, head_pat, tail_pat, cons_expr) ->
+       anf scrut (fun scrut_imm ->
+         let* scrut_var = fresh in
+         let* cond_var = fresh in
+         let* nil_aexp = anf_to_immediate_expr nil_expr in
+         let* cons_aexp_base = anf_to_immediate_expr cons_expr in
+         let* cons_aexp =
+           build_tuple_lets
+             scrut_var
+             (tuple_indices [ head_pat; tail_pat ])
+             cons_aexp_base
+         in
+         let* branch_result =
+           bind_complex_expr (ComplexBranch (ImmediateVar cond_var, nil_aexp, cons_aexp)) k
+         in
+         return
+           (AnfLet
+              ( NonRec
+              , scrut_var
+              , ComplexImmediate scrut_imm
+              , AnfLet
+                  ( NonRec
+                  , cond_var
+                  , ComplexBinOper
+                      (Equal, ImmediateVar scrut_var, ImmediateConst (ConstInt 0))
+                  , branch_result ) )))
+     | None -> fail "Only list match with [] and h::tl is supported")
+  | ExpFunction _ -> fail "Match/function cases not implemented"
+  | ExpConstruct ("[]", None) -> bind_complex_expr (ComplexList []) k
+  | ExpConstruct ("::", Some (ExpTuple (head_e, tail_e, []))) ->
+    anf head_e (fun head_imm ->
+      anf tail_e (fun tail_imm -> bind_complex_expr (ComplexTuple (head_imm, tail_imm, [])) k))
   | ExpConstruct _ -> fail "Constructors not implemented"
 
 and anf_to_immediate_expr expr = anf expr (fun imm -> return (AnfExpr (ComplexImmediate imm)))

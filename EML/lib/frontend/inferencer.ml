@@ -367,6 +367,20 @@ let rec infer_pattern env = function
      | "Some", Some p ->
        let* sub, typ, env' = infer_pattern env p in
        return (sub, TyOption typ, env')
+     | "[]", None ->
+       let* fresh = fresh_var in
+       return (Substitution.empty, TyList fresh, env)
+     | "::", Some ((PatTuple (_, _, []) as pair_pat)) ->
+       let* sub_pair, ty_pair, env' = infer_pattern env pair_pat in
+       let* fresh_hd = fresh_var in
+       let* fresh_tl = fresh_var in
+       let* sub_cons = Substitution.unify ty_pair (TyTuple [ fresh_hd; fresh_tl ]) in
+       let* sub_total = Substitution.compose sub_cons sub_pair in
+       return
+         ( sub_total
+         , Substitution.apply sub_total (TyList fresh_hd)
+         , TypeEnv.apply sub_total env' )
+     | "::", _ -> fail (RHS "Constructor (::) expects a pair pattern")
      | _ -> fail (RHS ("Unknown constructor: " ^ name)))
 ;;
 
@@ -651,6 +665,16 @@ let rec infer_expr env = function
      | "Some", Some e ->
        let* subst, ty = infer_expr env e in
        return (subst, TyOption ty)
+     | "[]", None ->
+       let* tv = fresh_var in
+       return (Substitution.empty, TyList tv)
+     | "::", Some (ExpTuple (head_e, tail_e, [])) ->
+       let* subst_h, ty_h = infer_expr env head_e in
+       let* subst_t, _ty_t = infer_expr (TypeEnv.apply subst_h env) tail_e in
+       let ty_h = Substitution.apply subst_t ty_h in
+       let* subst_total = Substitution.compose_all [ subst_t; subst_h ] in
+       return (subst_total, Substitution.apply subst_total (TyList ty_h))
+     | "::", _ -> fail (RHS "Constructor (::) expects a pair argument")
      | _ -> fail (RHS ("Unknown constructor: " ^ name)))
 ;;
 

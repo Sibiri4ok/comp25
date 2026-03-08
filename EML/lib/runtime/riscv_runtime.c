@@ -6,9 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define TO_ML_INTEGER(n) ((uint64_t)((uint64_t)(n) >> 1))
+#define TO_ML_INTEGER(n) ((int64_t)(n) >> 1)
 
-void print_int(long n) { printf("%ld", TO_ML_INTEGER(n)); }
+void print_int(long n) { printf("%ld\n", TO_ML_INTEGER(n)); }
 
 #define TAG_TUPLE 246
 #define TAG_CLOSURE 247
