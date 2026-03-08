@@ -75,24 +75,26 @@ let run_compile text env oc ~backend ~enable_gc : (env, unit) Result.t =
 ;;
 
 let run_infer_only text env oc : (env, unit) Result.t =
-  match Frontend.Runner.run text env with
-  | Error (Frontend.Runner.Parse s) ->
+  match Frontend.Parser.parse text with
+  | Error s ->
     report_parse_error oc s;
     Error ()
-  | Error (Frontend.Runner.Infer e) ->
-    report_infer_error oc e;
-    Error ()
-  | Ok (_ast, env', _out_list) ->
-    let filtered_env =
-      Base.Map.filter_keys env' ~f:(fun key -> not (Base.Map.mem env key))
-    in
-    Base.Map.iteri filtered_env ~f:(fun ~key ~data ->
-      match data with
-      | Inferencer.Scheme.Scheme (_, ty) ->
-        Out_channel.output_string
-          oc
-          (Format.asprintf "val %s: %a\n" key Frontend.Ast.pp_ty ty));
-    Ok env'
+  | Ok ast ->
+    (match Inferencer.ResultMonad.run (Inferencer.infer_structure env ast) with
+     | Error e ->
+       report_infer_error oc e;
+       Error ()
+     | Ok (_subst, env') ->
+       let filtered_env =
+         Base.Map.filter_keys env' ~f:(fun key -> not (Base.Map.mem env key))
+       in
+       Base.Map.iteri filtered_env ~f:(fun ~key ~data ->
+         match data with
+         | Inferencer.Scheme.Scheme (_, ty) ->
+           Out_channel.output_string
+             oc
+             (Format.asprintf "val %s: %a\n" key Frontend.Ast.pp_ty ty));
+       Ok env')
 ;;
 
 (* ------------------------------------------------------------------------- *)

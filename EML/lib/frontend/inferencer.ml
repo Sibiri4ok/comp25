@@ -193,8 +193,11 @@ end = struct
   ;;
 
   let singleton key value =
-    let* key, value = mapping key value in
-    return (Map.singleton (module String) key value)
+    match value with
+    | TyVar v when String.equal v key -> return empty
+    | _ ->
+      let* key, value = mapping key value in
+      return (Map.singleton (module String) key value)
   ;;
 
   let find = Map.find

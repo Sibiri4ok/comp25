@@ -67,6 +67,9 @@ SPDX-License-Identifier: LGPL-3.0-or-later
   val main: int
 
   $ make infer many_tests/typed/011mapcps.ml
+  val iter: (int -> unit) -> int list -> unit
+  val main: unit
+  val map: (int -> int) -> int list -> (int list -> int list) -> int list
 
   $ make infer many_tests/typed/012faccps.ml
   val fac: int -> (int -> int) -> int
