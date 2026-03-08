@@ -126,19 +126,36 @@ module Riscv_backend = struct
   let saved_fp_offset = 0
   let saved_ra_offset = word_size
 
+  (* addi/sd/ld immediate is 12-bit signed: -2048 .. 2047 *)
+  let max_addi_imm = 2048
+  let rec sub_sp n =
+    if n <= 0 then []
+    else if n <= max_addi_imm then addi sp sp (-n)
+    else addi sp sp (-max_addi_imm) @ sub_sp (n - max_addi_imm)
+
+  let addi_or_li_add rd rs imm =
+    if imm >= -max_addi_imm && imm <= max_addi_imm - 1 then addi rd rs imm
+    else li t0 imm @ add rd rs t0
+
+  (* Store at sp+offset; use direct sd when offset in 12-bit range *)
+  let sd_at_sp_offset reg offset =
+    if offset >= -2048 && offset <= 2047 then sd reg (sp, offset)
+    else addi_or_li_add t0 sp offset @ sd reg (t0, 0)
+
   type location =
     | Loc_reg of reg
     | Loc_mem of offset
 
   let prologue ~enable_gc ~name ~stack_size =
-    let ra_slot = sp, stack_size - saved_ra_offset in
-    let fp_slot = sp, stack_size - frame_header_size in
+    let ra_offset = stack_size - saved_ra_offset in
+    let fp_offset = stack_size - frame_header_size in
+    let fp_imm = stack_size - frame_header_size in
     let base =
       label name
-      @ addi sp sp (-stack_size)
-      @ sd ra ra_slot
-      @ sd fp fp_slot
-      @ addi fp sp (stack_size - frame_header_size)
+      @ sub_sp stack_size
+      @ sd_at_sp_offset ra ra_offset
+      @ sd_at_sp_offset fp fp_offset
+      @ addi_or_li_add fp sp fp_imm
     in
     if enable_gc && String.equal name "main"
     then base @ call "init_gc" @ mv a0 fp @ call "set_ptr_stack"

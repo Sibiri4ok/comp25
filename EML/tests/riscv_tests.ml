@@ -34,11 +34,10 @@ let%expect_test "unary_minus" =
   .globl x
   .type x, @function
 x:
-  mv t1, fp
   addi sp, sp, -16
+  sd ra, 8(sp)
+  sd fp, 0(sp)
   addi fp, sp, 0
-  sd ra, 8(fp)
-  sd t1, 0(fp)
   li t0, 11
   li a0, 1
   sub a0, a0, t0
@@ -50,11 +49,10 @@ x:
   .globl main
   .type main, @function
 main:
-  mv t1, fp
   addi sp, sp, -16
+  sd ra, 8(sp)
+  sd fp, 0(sp)
   addi fp, sp, 0
-  sd ra, 8(fp)
-  sd t1, 0(fp)
   li a0, 1
   addi sp, fp, 16
   ld ra, 8(fp)
@@ -72,11 +70,10 @@ let%expect_test "unary_not" =
   .globl x
   .type x, @function
 x:
-  mv t1, fp
   addi sp, sp, -16
+  sd ra, 8(sp)
+  sd fp, 0(sp)
   addi fp, sp, 0
-  sd ra, 8(fp)
-  sd t1, 0(fp)
   li t0, 3
   xori a0, t0, 3
   addi sp, fp, 16
@@ -87,11 +84,10 @@ x:
   .globl main
   .type main, @function
 main:
-  mv t1, fp
   addi sp, sp, -16
+  sd ra, 8(sp)
+  sd fp, 0(sp)
   addi fp, sp, 0
-  sd ra, 8(fp)
-  sd t1, 0(fp)
   li a0, 1
   addi sp, fp, 16
   ld ra, 8(fp)
@@ -109,11 +105,10 @@ let%expect_test "unit_main" =
   .globl main
   .type main, @function
 main:
-  mv t1, fp
   addi sp, sp, -16
+  sd ra, 8(sp)
+  sd fp, 0(sp)
   addi fp, sp, 0
-  sd ra, 8(fp)
-  sd t1, 0(fp)
   li a0, 1
   addi sp, fp, 16
   ld ra, 8(fp)
@@ -131,11 +126,10 @@ let%expect_test "mul_only" =
   .globl main
   .type main, @function
 main:
-  mv t1, fp
   addi sp, sp, -16
+  sd ra, 8(sp)
+  sd fp, 0(sp)
   addi fp, sp, 0
-  sd ra, 8(fp)
-  sd t1, 0(fp)
   li t0, 15
   li t1, 17
   srli t0, t0, 1
@@ -162,11 +156,10 @@ let%expect_test "double_fn" =
   .globl double
   .type double, @function
 double:
-  mv t1, fp
   addi sp, sp, -16
+  sd ra, 8(sp)
+  sd fp, 0(sp)
   addi fp, sp, 0
-  sd ra, 8(fp)
-  sd t1, 0(fp)
   sd a0, -8(fp)
   ld t0, -8(fp)
   ld t1, -8(fp)
@@ -180,11 +173,10 @@ double:
   .globl main
   .type main, @function
 main:
-  mv t1, fp
   addi sp, sp, -200
+  sd ra, 192(sp)
+  sd fp, 184(sp)
   addi fp, sp, 184
-  sd ra, 8(fp)
-  sd t1, 0(fp)
   li a0, 43
   call double
   addi sp, fp, 16
@@ -207,11 +199,10 @@ let%expect_test "abs_fn" =
   .globl abs
   .type abs, @function
 abs:
-  mv t1, fp
   addi sp, sp, -32
+  sd ra, 24(sp)
+  sd fp, 16(sp)
   addi fp, sp, 16
-  sd ra, 8(fp)
-  sd t1, 0(fp)
   sd a0, -8(fp)
   ld t0, -8(fp)
   li t1, 1
@@ -237,11 +228,10 @@ end_0:
   .globl main
   .type main, @function
 main:
-  mv t1, fp
   addi sp, sp, -200
+  sd ra, 192(sp)
+  sd fp, 184(sp)
   addi fp, sp, 184
-  sd ra, 8(fp)
-  sd t1, 0(fp)
   li a0, 15
   call abs
   addi sp, fp, 16
@@ -265,11 +255,10 @@ let%expect_test "nested_calls" =
   .globl sq
   .type sq, @function
 sq:
-  mv t1, fp
   addi sp, sp, -16
+  sd ra, 8(sp)
+  sd fp, 0(sp)
   addi fp, sp, 0
-  sd ra, 8(fp)
-  sd t1, 0(fp)
   sd a0, -8(fp)
   ld t0, -8(fp)
   ld t1, -8(fp)
@@ -285,11 +274,10 @@ sq:
   .globl sum_of_squares
   .type sum_of_squares, @function
 sum_of_squares:
-  mv t1, fp
   addi sp, sp, -400
+  sd ra, 392(sp)
+  sd fp, 384(sp)
   addi fp, sp, 384
-  sd ra, 8(fp)
-  sd t1, 0(fp)
   sd a0, -8(fp)
   sd a1, -16(fp)
   ld a0, -8(fp)
@@ -310,11 +298,10 @@ sum_of_squares:
   .globl main
   .type main, @function
 main:
-  mv t1, fp
   addi sp, sp, -208
+  sd ra, 200(sp)
+  sd fp, 192(sp)
   addi fp, sp, 192
-  sd ra, 8(fp)
-  sd t1, 0(fp)
   li a0, 7
   li a1, 9
   call sum_of_squares
@@ -338,11 +325,10 @@ let%expect_test "fibonacci" =
   .globl fib
   .type fib, @function
 fib:
-  mv t1, fp
   addi sp, sp, -432
+  sd ra, 424(sp)
+  sd fp, 416(sp)
   addi fp, sp, 416
-  sd ra, 8(fp)
-  sd t1, 0(fp)
   sd a0, -8(fp)
   ld t0, -8(fp)
   li t1, 5
@@ -385,11 +371,10 @@ end_0:
   .globl main
   .type main, @function
 main:
-  mv t1, fp
   addi sp, sp, -200
+  sd ra, 192(sp)
+  sd fp, 184(sp)
   addi fp, sp, 184
-  sd ra, 8(fp)
-  sd t1, 0(fp)
   li a0, 13
   call fib
   addi sp, fp, 16
@@ -412,11 +397,10 @@ let%expect_test "is_positive" =
   .globl is_positive
   .type is_positive, @function
 is_positive:
-  mv t1, fp
   addi sp, sp, -16
+  sd ra, 8(sp)
+  sd fp, 0(sp)
   addi fp, sp, 0
-  sd ra, 8(fp)
-  sd t1, 0(fp)
   sd a0, -8(fp)
   ld t0, -8(fp)
   li t1, 1
@@ -431,11 +415,10 @@ is_positive:
   .globl main
   .type main, @function
 main:
-  mv t1, fp
   addi sp, sp, -200
+  sd ra, 192(sp)
+  sd fp, 184(sp)
   addi fp, sp, 184
-  sd ra, 8(fp)
-  sd t1, 0(fp)
   li a0, 85
   call is_positive
   addi sp, fp, 16
@@ -458,11 +441,10 @@ let%expect_test "mul3" =
   .globl mul3
   .type mul3, @function
 mul3:
-  mv t1, fp
   addi sp, sp, -24
+  sd ra, 16(sp)
+  sd fp, 8(sp)
   addi fp, sp, 8
-  sd ra, 8(fp)
-  sd t1, 0(fp)
   sd a0, -8(fp)
   sd a1, -16(fp)
   sd a2, -24(fp)
@@ -487,11 +469,10 @@ mul3:
   .globl main
   .type main, @function
 main:
-  mv t1, fp
   addi sp, sp, -216
+  sd ra, 208(sp)
+  sd fp, 200(sp)
   addi fp, sp, 200
-  sd ra, 8(fp)
-  sd t1, 0(fp)
   li a0, 5
   li a1, 7
   li a2, 9
@@ -521,11 +502,10 @@ let%expect_test "test1" =
         .globl large
         .type large, @function
       large:
-        mv t1, fp
         addi sp, sp, -400
+        sd ra, 392(sp)
+        sd fp, 384(sp)
         addi fp, sp, 384
-        sd ra, 8(fp)
-        sd t1, 0(fp)
         sd a0, -8(fp)
         li t0, 1
         ld t1, -8(fp)
@@ -552,11 +532,10 @@ let%expect_test "test1" =
         .globl main
         .type main, @function
       main:
-        mv t1, fp
         addi sp, sp, -440
+        sd ra, 432(sp)
+        sd fp, 424(sp)
         addi fp, sp, 424
-        sd ra, 8(fp)
-        sd t1, 0(fp)
         li t0, 1
         li t1, 1
         beq t0, t1, else_1
@@ -615,11 +594,10 @@ let%expect_test "codegen closure fn with 10 arg" =
       .globl add
       .type add, @function
     add:
-      mv t1, fp
       addi sp, sp, -56
+      sd ra, 48(sp)
+      sd fp, 40(sp)
       addi fp, sp, 40
-      sd ra, 8(fp)
-      sd t1, 0(fp)
       sd a0, -8(fp)
       sd a1, -16(fp)
       sd a2, -24(fp)
@@ -664,11 +642,10 @@ let%expect_test "codegen closure fn with 10 arg" =
       .globl main
       .type main, @function
     main:
-      mv t1, fp
       addi sp, sp, -816
+      sd ra, 808(sp)
+      sd fp, 800(sp)
       addi fp, sp, 800
-      sd ra, 8(fp)
-      sd t1, 0(fp)
       la a0, add
       li a1, 7
       call alloc_closure
