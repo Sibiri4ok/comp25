@@ -1,4 +1,4 @@
-let affine a b x = a * x + b
+let affine a b x = (a * x) + b
 
 let main =
   let live = affine 2 7 in

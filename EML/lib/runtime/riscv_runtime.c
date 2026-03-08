@@ -214,13 +214,13 @@ void print_gc_status() {
     uint64_t allocations = GC.allocations;
 
     printf("=== GC Status ===\n");
-    printf("Current allocated: %td\n", current_alloc);
-    printf("Total   allocated: %" PRIu64 "\n", total);
-    printf("Free        space: %td\n", free_space);
-    printf("Heap         size: %d\n", SIZE_HEAP);
-    printf("Current      bank index: %d\n", bank);
-    printf("GC    collections: %" PRIu64 "\n", collections);
-    printf("GC    allocations: %" PRIu64 "\n", allocations);
+    printf("Current  allocated: %td\n", current_alloc);
+    printf("Total    allocated: %" PRIu64 "\n", total);
+    printf("Free         space: %td\n", free_space);
+    printf("Heap          size: %d\n", SIZE_HEAP);
+    printf("Current bank index: %d\n", bank);
+    printf("GC     collections: %" PRIu64 "\n", collections);
+    printf("GC     allocations: %" PRIu64 "\n", allocations);
     printf("=================\n");
     fflush(stdout);
 }

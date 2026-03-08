@@ -2,14 +2,15 @@ SHELL := /bin/bash
 
 RUNTIME_A_SANDBOX := ../lib/runtime/rv64_runtime.a
 RUNTIME_A_DEFAULT := ../_build/default/lib/runtime/rv64_runtime.a
-EML_BIN ?= /home/danil/comp25/EML/_build/default/bin/EML.exe
+EML_ROOT ?= $(CURDIR)/..
+EML_BIN ?= $(if $(findstring _build,$(EML_ROOT)),$(EML_ROOT)/bin/EML.exe,$(EML_ROOT)/_build/default/bin/EML.exe)
 
-ARGS := $(filter-out compile,$(MAKECMDGOALS))
+ARGS := $(filter-out compile compile_llvm,$(MAKECMDGOALS))
 USE_GC := $(if $(filter 1 true yes on,$(GC)),1,0)
 INPUT := $(firstword $(ARGS))
 EXTRA_GOALS := $(ARGS)
 
-.PHONY: compile $(EXTRA_GOALS)
+.PHONY: compile compile_llvm $(EXTRA_GOALS)
 
 compile:
 	@set -euo pipefail; \
@@ -45,6 +46,20 @@ compile:
 	riscv64-linux-gnu-as -march=rv64gc "$$ASM_FILE" -o "$$OBJ_FILE"; \
 	riscv64-linux-gnu-gcc "$$OBJ_FILE" "$$RUNTIME_A" -o "$$EXE_FILE"; \
 	qemu-riscv64 -L /usr/riscv64-linux-gnu -cpu rv64 "$$EXE_FILE"
+
+# LLVM: compile source to .ll (no link/run; needs llvm_call_indirect for full run)
+compile_llvm:
+	@set -euo pipefail; \
+	FILE="$(INPUT)"; \
+	if [[ -z "$$FILE" ]]; then \
+		echo "Usage: make compile_llvm <file.ml>" >&2; \
+		exit 1; \
+	fi; \
+	if [[ ! -f "$$FILE" ]]; then echo "Source file not found: $$FILE" >&2; exit 1; fi; \
+	SRC="$$(realpath "$$FILE")"; \
+	TMP="$$(mktemp -d)"; trap 'rm -rf "$$TMP"' EXIT; \
+	"$(EML_BIN)" -backend llvm -fromfile "$$SRC" -o "$$TMP/prog.ll"; \
+	cat "$$TMP/prog.ll"
 
 $(EXTRA_GOALS):
 	@:
