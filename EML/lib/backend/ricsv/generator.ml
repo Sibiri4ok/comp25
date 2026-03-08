@@ -12,10 +12,7 @@ open Generator_state
 open Auxillary
 
 let alloc_frame_slot =
-  let modify_frame_offset f =
-    modify (fun state -> { state with frame_offset = f state.frame_offset })
-  in
-  let* () = modify_frame_offset (fun offset -> offset + word_size) in
+  let* () = modify (fun state -> { state with frame_offset = state.frame_offset + word_size }) in
   let* state = get in
   return (fp, -state.frame_offset)
 ;;
@@ -99,6 +96,15 @@ let resolve_call_symbol name =
   | None -> return name
 ;;
 
+let resolve_symbol_and_arity state name =
+  match state.symbol_resolve state.current_func_index name with
+  | Some (asm_name, arity_val) -> asm_name, arity_val
+  | None ->
+    (match Base.Map.find state.arity_map name with
+     | Some arity_val -> name, arity_val
+     | None -> name, -1)
+;;
+
 let gen_imm dst = function
   | ImmediateConst (ConstInt n) -> append (li dst (tag_int n))
   | ImmediateConst (ConstBool b) -> append (li dst (if b then tag_int 1 else tag_int 0))
@@ -110,14 +116,7 @@ let gen_imm dst = function
      | Some loc -> load_into_reg dst loc
      | None ->
        let* state = get in
-       let sym, arity =
-         match state.symbol_resolve state.current_func_index name with
-         | Some (asm_name, arity_val) -> asm_name, arity_val
-         | None ->
-           (match Base.Map.find state.arity_map name with
-            | Some arity_val -> name, arity_val
-            | None -> name, -1)
-       in
+       let sym, arity = resolve_symbol_and_arity state name in
        if arity < 0
        then fail ("unbound variable: " ^ name)
        else (
@@ -160,6 +159,18 @@ let load_exps_into_regs spilled_locs arg_regs exps =
     | None -> gen_imm reg arg)
 ;;
 
+let emit_args_to_stack spilled args =
+  Base.List.foldi args ~init:(return ()) ~f:(fun i acc arg ->
+    let* () = acc in
+    let offset = i * word_size in
+    let* () =
+      match Base.Map.find spilled i with
+      | Some loc -> load_into_reg t0 loc
+      | None -> gen_imm t0 arg
+    in
+    append (sd t0 (sp, offset)))
+;;
+
 let push_stack_args stack_args =
   let n = List.length stack_args in
   if n = 0
@@ -167,13 +178,8 @@ let push_stack_args stack_args =
   else (
     let stack_bytes = n * word_size in
     let* () = append (addi sp sp (-stack_bytes)) in
-    let* () =
-      Base.List.foldi stack_args ~init:(return ()) ~f:(fun i acc arg ->
-        let* () = acc in
-        let offset = i * word_size in
-        let* () = gen_imm t0 arg in
-        append (sd t0 (sp, offset)))
-    in
+    let no_spills = Base.Map.empty (module Base.Int) in
+    let* () = emit_args_to_stack no_spills stack_args in
     return stack_bytes)
 ;;
 
@@ -204,18 +210,7 @@ let gen_via_apply_nargs dst fname nargs args spilled =
   let* () = gen_imm a0 (ImmediateVar fname) in
   let* () = append (li a1 nargs) in
   let* () = append (addi sp sp (-argv_bytes)) in
-  let* () =
-    Base.List.foldi args ~init:(return ()) ~f:(fun i acc arg ->
-      let* () = acc in
-      let offset = i * word_size in
-      let src =
-        match Base.Map.find spilled i with
-        | Some loc -> load_into_reg t0 loc
-        | None -> gen_imm t0 arg
-      in
-      let* () = src in
-      append (sd t0 (sp, offset)))
-  in
+  let* () = emit_args_to_stack spilled args in
   let* () = append (mv a2 sp) in
   let* () = append (call "eml_applyN") in
   let* () = copy_result_to dst in
@@ -337,18 +332,7 @@ and gen_tuple dst e1 e2 rest =
   let* spilled = spill_dangerous_args state elts in
   let array_bytes = argc * word_size in
   let* () = append (addi sp sp (-array_bytes)) in
-  let* () =
-    Base.List.foldi elts ~init:(return ()) ~f:(fun i acc elt ->
-      let* () = acc in
-      let offset = i * word_size in
-      let src =
-        match Base.Map.find spilled i with
-        | Some loc -> load_into_reg t0 loc
-        | None -> gen_imm t0 elt
-      in
-      let* () = src in
-      append (sd t0 (sp, offset)))
-  in
+  let* () = emit_args_to_stack spilled elts in
   let* () = append (li result_reg argc) in
   let* () = append (addi (List.nth arg_regs 1) sp 0) in
   let* () = append (call "create_tuple") in
@@ -396,13 +380,9 @@ let bind_param_to_stack env i = function
 ;;
 
 let flush_instr_buffer ppf =
-  let get_instr_buffer =
-    let* st = get in
-    return st.instr_buffer
-  in
-  let clear_instr_buffer = modify (fun st -> { st with instr_buffer = [] }) in
-  let* buf = get_instr_buffer in
-  let* () = clear_instr_buffer in
+  let* st = get in
+  let buf = st.instr_buffer in
+  let* () = put { st with instr_buffer = [] } in
   let () = List.iter (fun item -> format_item ppf item) (List.rev buf) in
   return ()
 ;;

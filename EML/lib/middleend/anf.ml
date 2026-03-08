@@ -75,44 +75,41 @@ let get_var = function
   | _ -> fresh
 ;;
 
-let rec destructure_tuple_pat tuple_var indices_pats empty nested_empty add =
-  match indices_pats with
-  | [] -> return empty
-  | (i, pat) :: rest ->
-    let* var = get_var pat in
-    let* rest_result = destructure_tuple_pat tuple_var rest empty nested_empty add in
-    let* inner_result =
-      match pat with
-      | PatTuple (ip1, ip2, irest) ->
-        destructure_tuple_pat
-          var
-          (List.mapi (ip1 :: ip2 :: irest) ~f:(fun j p -> j, p))
-          (nested_empty rest_result)
-          nested_empty
-          add
-      | _ -> return (nested_empty rest_result)
-    in
-    return (add var i tuple_var inner_result rest_result)
-;;
+let tuple_indices pats = List.mapi pats ~f:(fun i p -> i, p)
 
 let build_tuple_lets tuple_var indices_pats body =
-  destructure_tuple_pat
-    tuple_var
-    indices_pats
-    body
-    (fun x -> x)
-    (fun bind_id i tv inner _rest ->
-       AnfLet (NonRec, bind_id, ComplexField (ImmediateVar tv, i), inner))
+  let rec aux tuple_var indices_pats body =
+    match indices_pats with
+    | [] -> return body
+    | (i, pat) :: rest ->
+      let* bind_id = get_var pat in
+      let* body_with_rest = aux tuple_var rest body in
+      let* inner =
+        match pat with
+        | PatTuple (p1, p2, rest_pats) -> aux bind_id (tuple_indices (p1 :: p2 :: rest_pats)) body_with_rest
+        | _ -> return body_with_rest
+      in
+      return (AnfLet (NonRec, bind_id, ComplexField (ImmediateVar tuple_var, i), inner))
+  in
+  aux tuple_var indices_pats body
 ;;
 
 let build_tuple_top_level_bindings tuple_var indices_pats =
-  destructure_tuple_pat
-    tuple_var
-    indices_pats
-    []
-    (fun _ -> [])
-    (fun bind_id i tv inner rest ->
-       ((bind_id, AnfExpr (ComplexField (ImmediateVar tv, i))) :: inner) @ rest)
+  let rec aux tuple_var indices_pats =
+    match indices_pats with
+    | [] -> return []
+    | (i, pat) :: rest ->
+      let* bind_id = get_var pat in
+      let cur = bind_id, AnfExpr (ComplexField (ImmediateVar tuple_var, i)) in
+      let* inner =
+        match pat with
+        | PatTuple (p1, p2, rest_pats) -> aux bind_id (tuple_indices (p1 :: p2 :: rest_pats))
+        | _ -> return []
+      in
+      let* rest_bindings = aux tuple_var rest in
+      return ((cur :: inner) @ rest_bindings)
+  in
+  aux tuple_var indices_pats
 ;;
 
 let rec anf (expr : expr) (k : immediate -> anf_expr t) : anf_expr t =
@@ -126,14 +123,11 @@ let rec anf (expr : expr) (k : immediate -> anf_expr t) : anf_expr t =
       anf exp2 (fun imm2 -> bind_complex_expr (ComplexBinOper (op, imm1, imm2)) k))
   | ExpBranch (cond, then_exp, else_exp_opt) ->
     anf cond (fun imm_cond ->
-      let* then_aexp =
-        anf then_exp (fun imm -> return (AnfExpr (ComplexImmediate imm)))
-      in
+      let* then_aexp = anf_to_immediate_expr then_exp in
       let* else_aexp =
         match else_exp_opt with
         | None -> return (AnfExpr ComplexUnit)
-        | Some else_exp ->
-          anf else_exp (fun imm -> return (AnfExpr (ComplexImmediate imm)))
+        | Some else_exp -> anf_to_immediate_expr else_exp
       in
       bind_complex_expr (ComplexBranch (imm_cond, then_aexp, else_aexp)) k)
   | ExpLet (flag, (pat, expr), _, body) ->
@@ -144,9 +138,7 @@ let rec anf (expr : expr) (k : immediate -> anf_expr t) : anf_expr t =
        anf expr (fun tuple_imm ->
          let* tuple_var = fresh in
          let* body_anf_expr = anf body k in
-         let* with_lets =
-           build_tuple_lets tuple_var (List.mapi pats ~f:(fun i p -> i, p)) body_anf_expr
-         in
+         let* with_lets = build_tuple_lets tuple_var (tuple_indices pats) body_anf_expr in
          return (AnfLet (flag, tuple_var, ComplexImmediate tuple_imm, with_lets)))
      | PatVariable _ | PatConst _ ->
        anf expr (fun imm ->
@@ -175,7 +167,7 @@ let rec anf (expr : expr) (k : immediate -> anf_expr t) : anf_expr t =
       | _ -> fail "Invalid tuple")
   | ExpLambda (pat, pat_list, body) ->
     let params = pat :: pat_list in
-    let* body_anf_expr = anf body (fun imm -> return (AnfExpr (ComplexImmediate imm))) in
+    let* body_anf_expr = anf_to_immediate_expr body in
     let rec wrap_params current_body = function
       | [] -> return current_body
       | ((PatVariable _ | PatConst _) as param) :: remaining_params ->
@@ -184,12 +176,7 @@ let rec anf (expr : expr) (k : immediate -> anf_expr t) : anf_expr t =
       | PatTuple (p1, p2, rest_pats) :: remaining_params ->
         let* body_with_rest = wrap_params current_body remaining_params in
         let* var = fresh in
-        let* body_with_tuple_destructured =
-          build_tuple_lets
-            var
-            (List.mapi (p1 :: p2 :: rest_pats) ~f:(fun i p -> i, p))
-            body_with_rest
-        in
+        let* body_with_tuple_destructured = build_tuple_lets var (tuple_indices (p1 :: p2 :: rest_pats)) body_with_rest in
         return
           (AnfExpr (ComplexLambda ([ PatVariable var ], body_with_tuple_destructured)))
       | _ -> fail "Only variable, constant and tuple patterns in lambda"
@@ -208,6 +195,8 @@ let rec anf (expr : expr) (k : immediate -> anf_expr t) : anf_expr t =
   | ExpFunction _ | ExpMatch _ -> fail "Match/function cases not implemented"
   | ExpConstruct _ -> fail "Constructors not implemented"
 
+and anf_to_immediate_expr expr = anf expr (fun imm -> return (AnfExpr (ComplexImmediate imm)))
+
 and anf_list (exprs : expr list) (k : immediate list -> anf_expr t) : anf_expr t =
   match exprs with
   | [] -> k []
@@ -221,25 +210,17 @@ let to_fun_bind (id, e) = id, anf_expr_arity e, e
 let anf_structure_item (item : structure) : anf_structure list t =
   match item with
   | SEval expr ->
-    let* result =
-      anf expr (fun immediate -> return (AnfExpr (ComplexImmediate immediate)))
-    in
+    let* result = anf_to_immediate_expr expr in
     return [ AnfEval result ]
   | SValue (rec_flag, (pat, expr), binds) ->
     let bindings = (pat, expr) :: binds in
     List.fold_left bindings ~init:(return []) ~f:(fun acc (pat, expr) ->
       let* acc_list = acc in
-      let* anf_expr_body =
-        anf expr (fun immediate -> return (AnfExpr (ComplexImmediate immediate)))
-      in
+      let* anf_expr_body = anf_to_immediate_expr expr in
       match pat with
       | PatTuple (p1, p2, rest) ->
         let* tuple_var = fresh in
-        let* component_bindings =
-          build_tuple_top_level_bindings
-            tuple_var
-            (List.mapi (p1 :: p2 :: rest) ~f:(fun i p -> i, p))
-        in
+        let* component_bindings = build_tuple_top_level_bindings tuple_var (tuple_indices (p1 :: p2 :: rest)) in
         let one_value (id, e) = AnfValue (NonRec, to_fun_bind (id, e), []) in
         let new_items =
           AnfValue (rec_flag, to_fun_bind (tuple_var, anf_expr_body), [])

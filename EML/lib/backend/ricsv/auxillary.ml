@@ -17,14 +17,12 @@ let to_tagged_bool dst = add dst dst dst @ add_tag_items dst 1
 
 let compare_ordering dst left_reg right_reg ~invert =
   let base = slt dst left_reg right_reg in
-  let tagged = if invert then base @ xori dst dst 1 else base in
-  tagged @ to_tagged_bool dst
+  (if invert then base @ xori dst dst 1 else base) @ to_tagged_bool dst
 ;;
 
 let compare_eq_ne dst left_reg right_reg ~is_eq =
   let base = xor dst left_reg right_reg in
-  let tagged = if is_eq then base @ seqz dst dst else base @ snez dst dst in
-  tagged @ to_tagged_bool dst
+  (if is_eq then base @ seqz dst dst else base @ snez dst dst) @ to_tagged_bool dst
 ;;
 
 let bin_op dst op left_reg right_reg : (instr list, string) result =
@@ -77,20 +75,13 @@ let vars_in_caller_saved_regs env =
 ;;
 
 let indices_of_args_to_spill state exps =
-  let is_rewrites_result_regs state = function
+  let rewrites_result_reg = function
     | ImmediateConst _ -> false
     | ImmediateVar id -> Base.Map.mem state.arity_map id
   in
-  List.rev
-    (snd
-       (List.fold_left
-          (fun (index, dangerous_indices) arg ->
-             ( index + 1
-             , if is_rewrites_result_regs state arg
-               then index :: dangerous_indices
-               else dangerous_indices ))
-          (0, [])
-          exps))
+  Base.List.foldi exps ~init:[] ~f:(fun i acc arg ->
+    if rewrites_result_reg arg then i :: acc else acc)
+  |> List.rev
 ;;
 
 type call_style =
@@ -114,13 +105,7 @@ type call_style =
 let classify_call ~nargs ~callee_arity_opt ~fname ~args : call_style =
   match callee_arity_opt with
   | Some 0 when nargs = 1 -> Nullary fname
-  | Some arity when nargs > arity ->
-    Curry_chain
-      { fname
-      ; arity
-      ; first_args = Base.List.take args arity
-      ; rest_args = Base.List.drop args arity
-      }
+  | Some arity when nargs > arity -> Curry_chain { fname; arity; first_args = Base.List.take args arity; rest_args = Base.List.drop args arity }
   | Some arity when nargs = arity -> Direct { fname; args }
   | _ -> Via_apply_nargs { fname; nargs; args }
 ;;

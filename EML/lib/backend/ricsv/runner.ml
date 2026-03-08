@@ -6,6 +6,5 @@ open Middleend.Anf
 open Analysis
 
 let gen_program ?(enable_gc = false) ppf (program : anf_program) =
-  let analysis = analyze program in
-  Generator.gen_program ~enable_gc ppf analysis
+  program |> analyze |> Generator.gen_program ~enable_gc ppf
 ;;

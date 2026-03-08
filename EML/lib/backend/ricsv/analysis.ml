@@ -25,6 +25,9 @@ type analysis_result =
 
 let arg_regs_count = 8
 
+let sum_by f xs = List.fold_left (fun acc x -> acc + f x) 0 xs
+let max_by f xs = List.fold_left (fun acc x -> max acc (f x)) 0 xs
+
 let rec slots_in_imm = function
   | ImmediateVar _ | ImmediateConst _ -> 0
 
@@ -35,11 +38,11 @@ and slots_in_cexpr = function
   | ComplexUnarOper (_, imm) -> slots_in_imm imm
   | ComplexTuple (first, second, rest) ->
     let elts = first :: second :: rest in
-    List.length elts + List.fold_left (fun acc e -> acc + slots_in_imm e) 0 elts
+    List.length elts + sum_by slots_in_imm elts
   | ComplexField (imm, _) -> slots_in_imm imm
   | ComplexList imm_list ->
     let n = List.length imm_list in
-    n + List.fold_left (fun acc e -> acc + slots_in_imm e) 0 imm_list
+    n + sum_by slots_in_imm imm_list
   | ComplexApp (first, second, rest) ->
     (* +1 for curried-call intermediate; +1 per arg for spill_dangerous_args.
        +8 for spill_caller_saved_vars_to_frame at start of every invocation (can spill a0-a7).
@@ -47,7 +50,7 @@ and slots_in_cexpr = function
     let args = first :: second :: rest in
     let nargs = List.length args in
     let extra = if nargs >= 2 then 12 else 0 in
-    1 + 8 + nargs + extra + List.fold_left (fun acc e -> acc + slots_in_imm e) 0 args
+    1 + 8 + nargs + extra + sum_by slots_in_imm args
   | ComplexOption None -> 0
   | ComplexOption (Some imm) -> slots_in_imm imm
   | ComplexLambda (_, body) -> slots_in_anf body
@@ -64,21 +67,14 @@ let rec max_stack_args_cexpr = function
   | ComplexBinOper (_, left, right) ->
     max (max_stack_args_imm left) (max_stack_args_imm right)
   | ComplexUnarOper (_, imm) -> max_stack_args_imm imm
-  | ComplexTuple (first, second, rest) ->
-    List.fold_left
-      (fun acc e -> max acc (max_stack_args_imm e))
-      0
-      (first :: second :: rest)
+  | ComplexTuple (first, second, rest) -> max_by max_stack_args_imm (first :: second :: rest)
   | ComplexField (imm, _) -> max_stack_args_imm imm
-  | ComplexList imm_list ->
-    List.fold_left (fun acc e -> max acc (max_stack_args_imm e)) 0 imm_list
+  | ComplexList imm_list -> max_by max_stack_args_imm imm_list
   | ComplexApp (_first, second, rest) ->
     let nargs = 1 + List.length rest in
     (* Reserve enough for largest call: eml_applyN needs nargs words; direct needs max(0, nargs-8). *)
     let need = nargs in
-    let in_args =
-      List.fold_left (fun acc e -> max acc (max_stack_args_imm e)) 0 (second :: rest)
-    in
+    let in_args = max_by max_stack_args_imm (second :: rest) in
     max need in_args
   | ComplexOption None -> 0
   | ComplexOption (Some imm) -> max_stack_args_imm imm
@@ -104,17 +100,15 @@ let rec max_create_tuple_array_cexpr = function
   | ComplexTuple (first, second, rest) ->
     let elts = first :: second :: rest in
     let here = List.length elts * word_size in
-    List.fold_left (fun acc e -> max acc (max_create_tuple_array_imm e)) here elts
+    max here (max_by max_create_tuple_array_imm elts)
   | ComplexField (imm, _) -> max_create_tuple_array_imm imm
   | ComplexList imm_list ->
     (* Each cons adds 16 bytes; they accumulate along the list build *)
     let per_cons = 2 * word_size in
-    let from_elts =
-      List.fold_left (fun acc e -> acc + max_create_tuple_array_imm e) 0 imm_list
-    in
+    let from_elts = sum_by max_create_tuple_array_imm imm_list in
     (per_cons * List.length imm_list) + from_elts
   | ComplexApp (_f, second, rest) ->
-    List.fold_left (fun acc e -> max acc (max_create_tuple_array_imm e)) 0 (second :: rest)
+    max_by max_create_tuple_array_imm (second :: rest)
   | ComplexOption None -> 0
   | ComplexOption (Some imm) -> max_create_tuple_array_imm imm
   | ComplexLambda (_, body) -> max_create_tuple_array_anf body
@@ -147,14 +141,12 @@ let rec params_of_anf = function
 ;;
 
 let arity_map_of_program (program : anf_program) =
+  let add_fun_arity map (id, arity, _) = Base.Map.set map ~key:id ~data:arity in
   List.fold_left
     (fun map -> function
        | AnfValue (_, (fid, arity, _), and_binds) ->
          let map = Base.Map.set map ~key:fid ~data:arity in
-         List.fold_left
-           (fun acc (id, arity, _) -> Base.Map.set acc ~key:id ~data:arity)
-           map
-           and_binds
+         List.fold_left add_fun_arity map and_binds
        | _ -> map)
     (Base.Map.empty (module Base.String))
     program
@@ -226,15 +218,14 @@ let analyze (program : anf_program) =
     if has_main then arity_map else Base.Map.set arity_map ~key:"main" ~data:0
   in
   let resolver func_index var_name =
-    let rec find i =
-      if i < 0
-      then None
-      else (
-        match Base.List.nth functions i with
-        | None -> None
-        | Some fn when String.equal fn.func_name var_name ->
-          Some (fn.asm_name, List.length fn.params)
-        | Some _ -> find (i - 1))
+    let rec find = function
+      | i when i < 0 -> None
+      | i ->
+        (match Base.List.nth functions i with
+         | None -> None
+         | Some fn when String.equal fn.func_name var_name ->
+           Some (fn.asm_name, List.length fn.params)
+         | Some _ -> find (i - 1))
     in
     find (func_index - 1)
   in
