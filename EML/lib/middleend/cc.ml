@@ -4,6 +4,7 @@
 
 open Format
 open Frontend.Ast
+open Runtime.Primitives
 module VarSet = Set.Make (String)
 module EnvMap = Map.Make (String)
 
@@ -18,10 +19,10 @@ let vars_in_pattern p =
     | PatAny -> VarSet.empty
     | PatVariable x -> VarSet.singleton x
     | PatConst _ -> VarSet.empty
+    | PatTuple (p1, p2, rest) -> union_map_list walk (p1 :: p2 :: rest)
     | PatConstruct (_, None) -> VarSet.empty
     | PatConstruct (_, Some q) -> walk q
     | PatType (q, _) -> walk q
-    | PatTuple (p1, p2, rest) -> union_map_list walk (p1 :: p2 :: rest)
     | PatUnit | PatList _ | PatOption _ -> VarSet.empty
   in
   walk p
@@ -62,12 +63,12 @@ let rec collect_free_vars = function
        (match else_opt with
         | None -> []
         | Some e -> [ e ]))
+  | ExpTuple (e1, e2, rest) -> union_map_list collect_free_vars (e1 :: e2 :: rest)
   | ExpConstruct (_, None) -> VarSet.empty
   | ExpConstruct (_, Some e) -> collect_free_vars e
   | ExpTypeAnnotation (e, _) -> collect_free_vars e
   | ExpBinOper (_, e1, e2) -> VarSet.union (collect_free_vars e1) (collect_free_vars e2)
   | ExpUnarOper (_, e) -> collect_free_vars e
-  | ExpTuple (e1, e2, rest) -> union_map_list collect_free_vars (e1 :: e2 :: rest)
   | ExpList es -> union_map_list collect_free_vars es
   | ExpOption e_opt ->
     (match e_opt with
@@ -115,8 +116,11 @@ let extend_capture_env env pat captured_set =
   let rec add_captures_for_pat acc = function
     | PatAny | PatConst _ | PatConstruct (_, None) -> acc
     | PatVariable name -> EnvMap.add name captured_set acc
+    | PatTuple (p1, p2, rest) ->
+      let acc = add_captures_for_pat acc p1 in
+      let acc = add_captures_for_pat acc p2 in
+      List.fold_left add_captures_for_pat acc rest
     | PatConstruct (_, Some p) | PatType (p, _) -> add_captures_for_pat acc p
-    | PatTuple (p1, p2, rest) -> List.fold_left add_captures_for_pat acc (p1 :: p2 :: rest)
     | PatUnit | PatList _ | PatOption _ -> acc
   in
   add_captures_for_pat env pat
@@ -203,6 +207,19 @@ and convert_expr = function
         return (Some e')
     in
     return (ExpBranch (cond', then_e', else_e'))
+  | ExpTuple (e1, e2, rest) ->
+    let* e1' = convert_expr e1 in
+    let* e2' = convert_expr e2 in
+    let* rest' =
+      List.fold_right
+        (fun e acc ->
+           let* e' = convert_expr e in
+           let* rest_acc = acc in
+           return (e' :: rest_acc))
+        rest
+        (return [])
+    in
+    return (ExpTuple (e1', e2', rest'))
   | ExpConstruct (_, None) as e -> return e
   | ExpConstruct (tag, Some e) ->
     let* e' = convert_expr e in
@@ -228,19 +245,6 @@ and convert_expr = function
         (return [])
     in
     return (ExpList es')
-  | ExpTuple (e1, e2, rest) ->
-    let* e1' = convert_expr e1 in
-    let* e2' = convert_expr e2 in
-    let* rest' =
-      List.fold_right
-        (fun e acc ->
-           let* e' = convert_expr e in
-           let* acc' = acc in
-           return (e' :: acc'))
-        rest
-        (return [])
-    in
-    return (ExpTuple (e1', e2', rest'))
   | ExpOption e_opt ->
     (match e_opt with
      | None -> return (ExpOption None)
@@ -327,7 +331,10 @@ let convert_item = function
       , SValue (rec_flag, (pat', expr'), rest_binds) )
 ;;
 
-let builtin_globals = var_set_of_list (Frontend.Binutils.primitive_names ~enable_gc:true)
+let builtin_globals =
+  var_set_of_list (List.map (fun f -> f.name) predefined_runtime_funcs)
+;;
+
 let initial_context = { globals = builtin_globals; env = EnvMap.empty }
 
 let closure_conversion_result (program : Frontend.Ast.program)

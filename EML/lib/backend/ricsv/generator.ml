@@ -13,11 +13,11 @@ open Auxillary
 
 let alloc_frame_slot =
   let modify_frame_offset f =
-    modify (fun st -> { st with frame_offset = f st.frame_offset })
+    modify (fun state -> { state with frame_offset = f state.frame_offset })
   in
-  let* () = modify_frame_offset (fun n -> n + word_size) in
-  let* st = get in
-  return (fp, -st.frame_offset)
+  let* () = modify_frame_offset (fun offset -> offset + word_size) in
+  let* state = get in
+  return (fp, -state.frame_offset)
 ;;
 
 let store_reg_into_frame reg =
@@ -40,12 +40,12 @@ let load_into_reg dst_reg loc =
 (** Spill function parameters to the frame in param order (index 0 → first slot).
     Ensures env maps each param name to a consistent slot so (self l) loads self, not l. *)
 let spill_params_to_frame params_reg =
-  Base.List.foldi params_reg ~init:(return ()) ~f:(fun i acc p ->
+  Base.List.foldi params_reg ~init:(return ()) ~f:(fun index acc param ->
     let* () = acc in
-    match p with
+    match param with
     | ImmediateVar name ->
-      let r = List.nth arg_regs i in
-      let* slot = store_reg_into_frame r in
+      let reg = List.nth arg_regs index in
+      let* slot = store_reg_into_frame reg in
       modify_env (fun env -> Base.Map.set env ~key:name ~data:slot)
     | _ -> return ())
 ;;
@@ -93,9 +93,9 @@ let evacuate_reg dst =
 ;;
 
 let resolve_call_symbol name =
-  let* st = get in
-  match st.symbol_resolve st.current_func_index name with
-  | Some (asm, _) -> return asm
+  let* state = get in
+  match state.symbol_resolve state.current_func_index name with
+  | Some (asm_name, _) -> return asm_name
   | None -> return name
 ;;
 
@@ -112,10 +112,10 @@ let gen_imm dst = function
        let* state = get in
        let sym, arity =
          match state.symbol_resolve state.current_func_index name with
-         | Some (asm_name, a) -> asm_name, a
+         | Some (asm_name, arity_val) -> asm_name, arity_val
          | None ->
            (match Base.Map.find state.arity_map name with
-            | Some a -> name, a
+            | Some arity_val -> name, arity_val
             | None -> name, -1)
        in
        if arity < 0
@@ -123,9 +123,9 @@ let gen_imm dst = function
        else (
          match arity with
          | 0 -> append (call sym)
-         | n ->
+         | nargs ->
            let* () = append (la result_reg sym) in
-           let* () = append (li (List.nth arg_regs 1) n) in
+           let* () = append (li (List.nth arg_regs 1) nargs) in
            append (call "alloc_closure")))
 ;;
 
@@ -186,6 +186,8 @@ let gen_call_with_regs dst regs args spilled symbol =
   if reserved > 0 then append (addi sp sp reserved) else return ()
 ;;
 
+(*  let foo = ... in
+    foo () *)
 let gen_nullary dst fname =
   let* sym = resolve_call_symbol fname in
   let* () = append (call sym) in
@@ -405,8 +407,8 @@ let flush_instr_buffer ppf =
   return ()
 ;;
 
-let gen_func ~enable_gc func_name params body frame_sz ppf =
-  fprintf ppf "\n  .globl %s\n  .type %s, @function\n" func_name func_name;
+let gen_func ~enable_gc asm_name params body frame_sz ppf =
+  fprintf ppf "\n  .globl %s\n  .type %s, @function\n" asm_name asm_name;
   let args = List.length params in
   let params_reg, params_stack =
     ( Base.List.take params (min args arg_regs_count)
@@ -424,23 +426,22 @@ let gen_func ~enable_gc func_name params body frame_sz ppf =
       bind_param_to_stack e i p)
   in
   let* () = set_env env in
-  let* () = append (prologue ~enable_gc ~name:func_name ~stack_size:frame_sz) in
+  let* () = append (prologue ~enable_gc ~name:asm_name ~stack_size:frame_sz) in
   let* st = get in
   let* () = put { st with frame_offset = 0 } in
   let* () = spill_params_to_frame params_reg in
   let* () = gen_anf result_reg body in
-  let* () = append (epilogue ~enable_gc ~is_main:(String.equal func_name "main")) in
+  let* () = append (epilogue ~enable_gc ~is_main:(String.equal asm_name "main")) in
   let* () = flush_instr_buffer ppf in
   return ()
 ;;
 
-let gen_program ?(enable_gc = false) ppf (analysis : analysis_result) =
+let gen_program ~enable_gc ppf (analysis : analysis_result) =
   fprintf ppf ".section .text";
-  let base = Frontend.Binutils.primitive_arities ~enable_gc in
+  let base = Runtime.Primitives.runtime_primitive_arities in
   let arity_map =
     List.fold_left
-      (fun map { Frontend.Binutils.name; arity } ->
-         Base.Map.set map ~key:name ~data:arity)
+      (fun map (name, arity) -> Base.Map.set map ~key:name ~data:arity)
       analysis.arity_map
       base
   in

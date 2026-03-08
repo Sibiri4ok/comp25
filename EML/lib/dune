@@ -4,7 +4,7 @@
  (name EML_lib)
  (public_name EML.lib)
  (modules :standard)
- (libraries base angstrom)
+ (libraries base angstrom llvm)
  (preprocess
   (pps ppx_deriving.show ppx_deriving.eq))
  (instrumentation

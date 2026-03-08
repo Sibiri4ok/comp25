@@ -15,32 +15,41 @@ let is_caller_saved = function
 
 let to_tagged_bool dst = add dst dst dst @ add_tag_items dst 1
 
-let compare_ordering dst r1 r2 ~invert =
-  let base = slt dst r1 r2 in
+let compare_ordering dst left_reg right_reg ~invert =
+  let base = slt dst left_reg right_reg in
   let tagged = if invert then base @ xori dst dst 1 else base in
   tagged @ to_tagged_bool dst
 ;;
 
-let compare_eq_ne dst r1 r2 ~is_eq =
-  let base = xor dst r1 r2 in
+let compare_eq_ne dst left_reg right_reg ~is_eq =
+  let base = xor dst left_reg right_reg in
   let tagged = if is_eq then base @ seqz dst dst else base @ snez dst dst in
   tagged @ to_tagged_bool dst
 ;;
 
-let bin_op dst op r1 r2 : (instr list, string) result =
+let bin_op dst op left_reg right_reg : (instr list, string) result =
   match op with
-  | "+" -> Ok (add dst r1 r2 @ add_tag_items dst (-1))
-  | "-" -> Ok (sub dst r1 r2 @ add_tag_items dst 1)
-  | "*" -> Ok (srli r1 r1 1 @ addi r2 r2 (-1) @ mul dst r1 r2 @ add_tag_items dst 1)
+  | "+" -> Ok (add dst left_reg right_reg @ add_tag_items dst (-1))
+  | "-" -> Ok (sub dst left_reg right_reg @ add_tag_items dst 1)
+  | "*" ->
+    Ok
+      (srli left_reg left_reg 1
+       @ addi right_reg right_reg (-1)
+       @ mul dst left_reg right_reg
+       @ add_tag_items dst 1)
   | "/" ->
     Ok
-      (srli r1 r1 1 @ srli r2 r2 1 @ div dst r1 r2 @ add dst dst dst @ add_tag_items dst 1)
-  | "<" -> Ok (compare_ordering dst r1 r2 ~invert:false)
-  | ">" -> Ok (compare_ordering dst r2 r1 ~invert:false)
-  | "<=" -> Ok (compare_ordering dst r2 r1 ~invert:true)
-  | ">=" -> Ok (compare_ordering dst r1 r2 ~invert:true)
-  | "=" -> Ok (compare_eq_ne dst r1 r2 ~is_eq:true)
-  | "<>" -> Ok (compare_eq_ne dst r1 r2 ~is_eq:false)
+      (srli left_reg left_reg 1
+       @ srli right_reg right_reg 1
+       @ div dst left_reg right_reg
+       @ add dst dst dst
+       @ add_tag_items dst 1)
+  | "<" -> Ok (compare_ordering dst left_reg right_reg ~invert:false)
+  | ">" -> Ok (compare_ordering dst right_reg left_reg ~invert:false)
+  | "<=" -> Ok (compare_ordering dst right_reg left_reg ~invert:true)
+  | ">=" -> Ok (compare_ordering dst left_reg right_reg ~invert:true)
+  | "=" -> Ok (compare_eq_ne dst left_reg right_reg ~is_eq:true)
+  | "<>" -> Ok (compare_eq_ne dst left_reg right_reg ~is_eq:false)
   | _ -> Error ("unsupported binary operator: " ^ op)
 ;;
 
@@ -75,8 +84,11 @@ let indices_of_args_to_spill state exps =
   List.rev
     (snd
        (List.fold_left
-          (fun (i, acc) arg ->
-             i + 1, if is_rewrites_result_regs state arg then i :: acc else acc)
+          (fun (index, dangerous_indices) arg ->
+             ( index + 1
+             , if is_rewrites_result_regs state arg
+               then index :: dangerous_indices
+               else dangerous_indices ))
           (0, [])
           exps))
 ;;
