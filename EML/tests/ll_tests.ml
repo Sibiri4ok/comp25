@@ -17,102 +17,111 @@ let run str =
      | Ok lst -> Format.printf "%a\n" pp_structure lst)
 ;;
 
-let%expect_test "simple ll" =
+let%expect_test "nonrecursive_multiple_lets" =
   run
     {|
-  let foo a =
-    let fn = (fun a b -> a + b) a in
-    fn 3
+  let foo x =
+    let bar x y = x + y
+    and baz = 2 in
+    bar x 2 + baz
   ;;
   |};
   [%expect {|
-    let lifted_0 = fun a b -> (a + b);;
-    let foo = fun a -> let fn = lifted_0 a in fn 3;; |}]
+    let lifted_0 = fun x y -> (x + y);;
+    let foo = fun x -> let bar = lifted_0
+    and baz = 2 in (bar x 2 + baz);; |}]
 ;;
 
-let%expect_test "let in ll" =
+let%expect_test "nonrecursive_multiple_functions" =
   run
     {|
-  let test1 x y = let test2 x y z = x, y, z in test2 x y;;
-  |};
-  [%expect {|
-    let lifted_0 = fun x y z -> (x, y, z);;
-    let test1 = fun x y -> let test2 = lifted_0 in test2 x y;; |}]
-;;
-
-let%expect_test "fac ll" =
-  run
-    {|
-  let fac n =
-    let rec fack n k =
-    if ( <= ) n 1 then k 1
-    else fack (( - ) n 1) ((fun k n m -> k (( * ) m n)) k n) in
-    fack n (fun x -> x)
+  let foo x =
+    let bar y = y
+    and baz x c = x + c in
+    bar 2 + baz x 5
   ;;
   |};
   [%expect {|
-    let lifted_2 = fun k n m -> k (* m n);;
-    let lifted_1 = fun n k -> if <= n 1 then k 1 else lifted_0 (- n 1) (lifted_2 k n);;
-    let rec lifted_0 = lifted_1;;
-    let lifted_3 = fun x -> x;;
-    let fac = fun n -> lifted_0 n lifted_3;; |}]
+    let lifted_0 = fun y -> y;;
+    let lifted_1 = fun x c -> (x + c);;
+    let foo = fun x -> let bar = lifted_0
+    and baz = lifted_1 in (bar 2 + baz x 5);; |}]
 ;;
 
-let%expect_test "nested ll" =
+let%expect_test "mutual_recursion_in_let_rec_and" =
   run
     {|
-  let outer x =
-    let mid x y = let inner x y z = ( + ) (( + ) x y) z in inner x y 3 in
-    mid x 4
+  let foo =
+    let limit = 10 in
+    let rec is_small limit n =
+      if n <= limit then true else is_big limit (n - 1)
+    and is_big limit n =
+      if n > limit then false else is_small limit (n - 1) in
+    is_small limit 13
   ;;
   |};
   [%expect {|
-    let lifted_1 = fun x y z -> + (+ x y) z;;
-    let lifted_0 = fun x y -> let inner = lifted_1 in inner x y 3;;
-    let outer = fun x -> let mid = lifted_0 in mid x 4;; |}]
+    let lifted_2 = fun limit n -> if (n <= limit) then true else lifted_1 limit ((n - 1));;
+    let lifted_3 = fun limit n -> if (n > limit) then false else lifted_0 limit ((n - 1));;
+    let rec lifted_0 = lifted_2
+    and lifted_1 = lifted_3;;
+    let foo = let limit = 10 in lifted_0 limit 13;; |}]
 ;;
 
-let%expect_test "if then else with ll" =
+let%expect_test "recursive_local_bindings_use_renamed_functions" =
   run
     {|
-  let foo flag a b = if flag then (fun a x -> a + x) a else (fun b x -> b + x) b
-  |};
-  [%expect {|
-    let lifted_0 = fun a x -> (a + x);;
-    let lifted_1 = fun b x -> (b + x);;
-    let foo = fun flag a b -> if flag then lifted_0 a else lifted_1 b;; |}]
-;;
-
-let%expect_test "function ll" =
-  run
-    {|
-  let foo = function
-    | 0 -> 0
-    | _ ->
-      let rec fn = function
-        | 1 -> 1
-        | a -> fn (a - 1)
-      in
-      fn 3
+  let foo x =
+    let rec bar x y = x + y
+    and baz x c = c + bar x 5 in
+    bar x 5 + baz x 6
   ;;
   |};
   [%expect {|
-    let lifted_1 = function | 1 -> 1 | a -> lifted_0 ((a - 1));;
-    let rec lifted_0 = lifted_1;;
-    let foo = function | 0 -> 0 | _ -> lifted_0 3;; |}]
+    let lifted_2 = fun x y -> (x + y);;
+    let lifted_3 = fun x c -> (c + lifted_0 x 5);;
+    let rec lifted_0 = lifted_2
+    and lifted_1 = lifted_3;;
+    let foo = fun x -> (lifted_0 x 5 + lifted_1 x 6);; |}]
 ;;
 
-let%expect_test "match exp ll" =
+let%expect_test "sequence_with_local_lambda" =
+  run
+    {|
+  let g x =
+    print_int x;
+    (let h x y = x + y in h x 10)
+  ;;
+  |};
+  [%expect {|
+    let lifted_0 = fun x y -> (x + y);;
+    let g = fun x -> let () = print_int x in let h = lifted_0 in h x 10;; |}]
+;;
+
+let%expect_test "tuple_pattern_lambda_lifting" =
+  run
+    {|
+  let pair_sum a b =
+    let f a b (x, y) = a + b + x + y in
+    f a b (1, 2)
+  ;;
+  |};
+  [%expect {|
+    let lifted_0 = fun a b (x, y) -> (((a + b) + x) + y);;
+    let pair_sum = fun a b -> let f = lifted_0 in f a b ((1, 2));; |}]
+;;
+
+let%expect_test "match_with_option_and_inline_lambdas" =
   run
     {|
   let f x =
     match x with
-    | Some y -> (fun y z -> y + z) y
-    | None -> fun z -> z
+    | Some y -> (fun y z -> y - z) y
+    | None -> fun z -> z + 1
   ;;
   |};
   [%expect {|
-    let lifted_0 = fun y z -> (y + z);;
-    let lifted_1 = fun z -> z;;
+    let lifted_0 = fun y z -> (y - z);;
+    let lifted_1 = fun z -> (z + 1);;
     let f = fun x -> match x with | Some (y) -> lifted_0 y | None -> lifted_1;; |}]
 ;;

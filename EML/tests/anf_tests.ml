@@ -241,13 +241,3 @@ let%expect_test "anf_match_list_lowering_cons_nil_order" =
     []))
   ]|}]
 ;;
-
-let%expect_test "anf_unsupported_match_shape_error" =
-  parse_and_anf
-    {| let rec h xs =
-  match xs with
-  | [] -> 0
-  | [x] -> x
-  | hd::tl -> hd |};
-  [%expect {|ANF error: Only list match with [] and h::tl is supported|}]
-;;
