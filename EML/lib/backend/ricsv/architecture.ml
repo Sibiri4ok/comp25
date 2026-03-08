@@ -127,7 +127,6 @@ module Riscv_backend = struct
   let saved_ra_offset = word_size
   let riscv_imm12_min = -2048
   let riscv_imm12_max = 2047
-
   let fits_imm12 n = n >= riscv_imm12_min && n <= riscv_imm12_max
 
   type location =
@@ -146,14 +145,7 @@ module Riscv_backend = struct
       let ofs = stack_size - frame_header_size in
       if fits_imm12 ofs then addi fp sp ofs else li t0 ofs @ add fp sp t0
     in
-    let base =
-      label name
-      @ mv t1 fp
-      @ dec_sp
-      @ set_fp
-      @ sd ra ra_slot
-      @ sd t1 fp_slot
-    in
+    let base = label name @ mv t1 fp @ dec_sp @ set_fp @ sd ra ra_slot @ sd t1 fp_slot in
     if enable_gc && String.equal name "main"
     then base @ call "init_gc" @ mv a0 fp @ call "set_ptr_stack"
     else base
@@ -162,8 +154,7 @@ module Riscv_backend = struct
   let epilogue ~enable_gc ~is_main =
     let base =
       (if enable_gc && is_main then call "destroy_gc" else [])
-      @
-      addi sp fp frame_header_size
+      @ addi sp fp frame_header_size
       @ ld ra (fp, saved_ra_offset)
       @ ld fp (fp, saved_fp_offset)
     in

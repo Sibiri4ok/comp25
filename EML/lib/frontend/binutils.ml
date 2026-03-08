@@ -2,18 +2,32 @@
 
 (** SPDX-License-Identifier: LGPL-3.0-or-later *)
 
-(** Built-in names and arities. Single place to change stdlib/runtime for
-    closure conversion, backend, etc. *)
+(** Primitives the generated code can call. *)
 
 type primitive =
   { name : string
   ; arity : int
   }
 
-let all_runtime_prims : primitive list =
-  [ { name = "print_int"; arity = 1 }; { name = "print_endline"; arity = 1 } ]
+let primitive_arities ~enable_gc : primitive list =
+  let base =
+    [ { name = "print_int"; arity = 1 }
+    ; { name = "print_endline"; arity = 1 }
+    ; { name = "create_tuple"; arity = 2 }
+    ; { name = "field"; arity = 2 }
+    ; { name = "alloc_closure"; arity = 2 }
+    ; { name = "eml_applyN"; arity = 3 }
+    ]
+  in
+  if enable_gc
+  then
+    base
+    @ [ { name = "get_heap_start"; arity = 0 }
+      ; { name = "get_heap_final"; arity = 0 }
+      ; { name = "collect"; arity = 0 }
+      ; { name = "print_gc_status"; arity = 0 }
+      ]
+  else base
 ;;
 
-let builtin_global_names =
-  List.map (fun p -> p.name) all_runtime_prims @ Ast.unary_op_list @ Ast.bin_op_list
-;;
+let primitive_names ~enable_gc = List.map (fun p -> p.name) (primitive_arities ~enable_gc)

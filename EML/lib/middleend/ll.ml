@@ -358,6 +358,7 @@ module Make (N : NAMING) = struct
     | ExpOption (Some e) ->
       let* res = lift_expr (inner ctx) e in
       return { structures = res.structures; expr = ExpOption (Some res.expr) }
+
   and lift_binds (ctx : context) binds : (structure list * (pattern * expr) list) t =
     fold_binds ctx binds (fun ctx _ e -> lift_expr ctx e)
 

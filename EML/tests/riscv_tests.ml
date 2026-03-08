@@ -597,7 +597,6 @@ let%expect_test "test1" =
 |}]
 ;;
 
-
 let%expect_test "codegen closure fn with 10 arg" =
   run
     {|

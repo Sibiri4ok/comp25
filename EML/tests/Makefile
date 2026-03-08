@@ -2,7 +2,8 @@ SHELL := /bin/bash
 
 RUNTIME_A_SANDBOX := ../lib/runtime/rv64_runtime.a
 RUNTIME_A_DEFAULT := ../_build/default/lib/runtime/rv64_runtime.a
-EML_BIN ?= /home/danil/comp25/EML/_build/default/bin/EML.exe
+EML_ROOT ?= $(CURDIR)/..
+EML_BIN ?= $(if $(findstring _build,$(EML_ROOT)),$(EML_ROOT)/bin/EML.exe,$(EML_ROOT)/_build/default/bin/EML.exe)
 
 ARGS := $(filter-out compile,$(MAKECMDGOALS))
 USE_GC := $(if $(filter 1 true yes on,$(GC)),1,0)

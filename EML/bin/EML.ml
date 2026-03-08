@@ -64,7 +64,9 @@ let run_compile ~enable_gc text env oc : (env, unit) Result.t =
 let compiler opts : (unit, unit) Result.t =
   let run text env oc = run_compile ~enable_gc:opts.enable_gc text env oc in
   let env0 =
-    if opts.enable_gc then Inferencer.TypeEnv.env_with_gc else Inferencer.TypeEnv.initial_env
+    if opts.enable_gc
+    then Inferencer.TypeEnv.env_with_gc
+    else Inferencer.TypeEnv.initial_env
   in
   let with_output f =
     match opts.output_file with

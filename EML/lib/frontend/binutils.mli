@@ -7,5 +7,5 @@ type primitive =
   ; arity : int
   }
 
-val all_runtime_prims : primitive list
-val builtin_global_names : string list
+val primitive_arities : enable_gc:bool -> primitive list
+val primitive_names : enable_gc:bool -> string list

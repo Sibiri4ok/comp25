@@ -4,7 +4,6 @@
 
 open Format
 open Frontend.Ast
-open Frontend.Binutils
 module VarSet = Set.Make (String)
 module EnvMap = Map.Make (String)
 
@@ -22,8 +21,7 @@ let vars_in_pattern p =
     | PatConstruct (_, None) -> VarSet.empty
     | PatConstruct (_, Some q) -> walk q
     | PatType (q, _) -> walk q
-    | PatTuple (p1, p2, rest) ->
-      union_map_list walk (p1 :: p2 :: rest)
+    | PatTuple (p1, p2, rest) -> union_map_list walk (p1 :: p2 :: rest)
     | PatUnit | PatList _ | PatOption _ -> VarSet.empty
   in
   walk p
@@ -69,8 +67,7 @@ let rec collect_free_vars = function
   | ExpTypeAnnotation (e, _) -> collect_free_vars e
   | ExpBinOper (_, e1, e2) -> VarSet.union (collect_free_vars e1) (collect_free_vars e2)
   | ExpUnarOper (_, e) -> collect_free_vars e
-  | ExpTuple (e1, e2, rest) ->
-    union_map_list collect_free_vars (e1 :: e2 :: rest)
+  | ExpTuple (e1, e2, rest) -> union_map_list collect_free_vars (e1 :: e2 :: rest)
   | ExpList es -> union_map_list collect_free_vars es
   | ExpOption e_opt ->
     (match e_opt with
@@ -119,8 +116,7 @@ let extend_capture_env env pat captured_set =
     | PatAny | PatConst _ | PatConstruct (_, None) -> acc
     | PatVariable name -> EnvMap.add name captured_set acc
     | PatConstruct (_, Some p) | PatType (p, _) -> add_captures_for_pat acc p
-    | PatTuple (p1, p2, rest) ->
-      List.fold_left add_captures_for_pat acc (p1 :: p2 :: rest)
+    | PatTuple (p1, p2, rest) -> List.fold_left add_captures_for_pat acc (p1 :: p2 :: rest)
     | PatUnit | PatList _ | PatOption _ -> acc
   in
   add_captures_for_pat env pat
@@ -331,7 +327,7 @@ let convert_item = function
       , SValue (rec_flag, (pat', expr'), rest_binds) )
 ;;
 
-let builtin_globals = var_set_of_list builtin_global_names
+let builtin_globals = var_set_of_list (Frontend.Binutils.primitive_names ~enable_gc:true)
 let initial_context = { globals = builtin_globals; env = EnvMap.empty }
 
 let closure_conversion_result (program : Frontend.Ast.program)

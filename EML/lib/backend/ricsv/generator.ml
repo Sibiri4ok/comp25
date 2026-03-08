@@ -351,7 +351,7 @@ and gen_tuple dst e1 e2 rest =
   let* () = append (addi (List.nth arg_regs 1) sp 0) in
   let* () = append (call "create_tuple") in
   let* () = append (addi sp sp array_bytes) in
-    copy_result_to dst
+  copy_result_to dst
 
 and gen_app dst fname first rest = gen_invocation dst fname (first :: rest)
 
@@ -436,10 +436,10 @@ let gen_func ~enable_gc func_name params body frame_sz ppf =
 
 let gen_program ?(enable_gc = false) ppf (analysis : analysis_result) =
   fprintf ppf ".section .text";
-  let base = Config.primitive_arities ~enable_gc in
+  let base = Frontend.Binutils.primitive_arities ~enable_gc in
   let arity_map =
     List.fold_left
-      (fun map { Config.name; arity } ->
+      (fun map { Frontend.Binutils.name; arity } ->
          Base.Map.set map ~key:name ~data:arity)
       analysis.arity_map
       base
