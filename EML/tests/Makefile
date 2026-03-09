@@ -3,7 +3,6 @@ SHELL := /bin/bash
 EML_ROOT   ?= $(CURDIR)/..
 EML_BIN    ?= $(if $(findstring _build,$(EML_ROOT)),$(EML_ROOT)/bin/EML.exe,$(EML_ROOT)/_build/default/bin/EML.exe)
 RUNTIME_A  := $(if $(wildcard ../lib/runtime/rv64_runtime.a),../lib/runtime/rv64_runtime.a,../_build/default/lib/runtime/rv64_runtime.a)
-RUNTIME_DIR := $(CURDIR)/../lib/runtime
 
 ARGS       := $(filter-out compile_riscv infer compile_llvm install-clang,$(MAKECMDGOALS))
 INPUT      := $(firstword $(ARGS))
@@ -13,12 +12,10 @@ CFLAGS_GC  := $(if $(filter 1 true yes on,$(GC)),-DENABLE_GC,)
 
 .PHONY: compile_riscv infer compile_llvm install-clang $(EXTRA_GOALS)
 
-# Install clang (for compile_llvm). Usage: make install-clang
 install-clang:
 	@command -v clang >/dev/null && { echo "clang already installed"; exit 0; }; \
 	echo "Installing clang (apt-get)..."; sudo apt-get update && sudo apt-get install -y clang
 
-# RISC-V: compile .ml -> .s -> .o, link, run under qemu. Usage: make compile_riscv [GC=1] <file.ml|file.s>
 compile_riscv:
 	@set -euo pipefail; \
 	FILE="$(INPUT)"; \
@@ -38,7 +35,6 @@ compile_riscv:
 	riscv64-linux-gnu-gcc "$$OBJ_FILE" "$(RUNTIME_A)" -o "$$EXE_FILE"; \
 	qemu-riscv64 -L /usr/riscv64-linux-gnu -cpu rv64 "$$EXE_FILE"
 
-# Infer types. Usage: make infer [GC=1] <file.ml>
 infer:
 	@set -euo pipefail; \
 	FILE="$(INPUT)"; \
@@ -47,12 +43,11 @@ infer:
 	[[ -f "$$FILE" ]] || { echo "Source file not found: $$FILE" >&2; exit 1; }; \
 	SRC="$$(realpath "$$FILE")"; \
 	"$(EML_BIN)" $(GC_FLAG) -infer -fromfile "$$SRC"
-
-# LLVM: compile .ml -> .ll, link with runtime, run on host (x86-64). Usage: make compile_llvm [GC=1] <file.ml>
-# If clang is missing, runs: make install-clang (sudo required)
 compile_llvm:
 	@set -euo pipefail; \
 	command -v clang >/dev/null || $(MAKE) install-clang; \
+	RT_DIR=""; d="$$(pwd)"; while [ -n "$$d" ] && [ "$$d" != "/" ]; do [ -f "$$d/lib/runtime/runtime.c" ] && RT_DIR="$$(realpath "$$d/lib/runtime")" && break; d="$$(dirname "$$d")"; done; \
+	[[ -n "$$RT_DIR" ]] || { echo "runtime not found (no lib/runtime/runtime.c in $$(pwd) or parents)" >&2; exit 1; }; \
 	FILE="$(INPUT)"; \
 	[[ -n "$$FILE" ]] || { echo "Usage: make compile_llvm [GC=1] <file.ml>" >&2; exit 1; }; \
 	[[ -f "$$FILE" ]] || { echo "Source file not found: $$FILE" >&2; exit 1; }; \
@@ -60,8 +55,8 @@ compile_llvm:
 	BASENAME="$$(basename "$$FILE" .ml)"; \
 	TMP="$$(mktemp -d)"; trap 'rm -rf "$$TMP"' EXIT; \
 	"$(EML_BIN)" $(GC_FLAG) -backend llvm -fromfile "$$SRC" -o "$$TMP/prog.ll"; \
-	clang -O0 -Wno-override-module $(CFLAGS_GC) -DEML_LLVM -DEML_LLVM_STANDALONE -c "$(RUNTIME_DIR)/runtime.c" -o "$$TMP/runtime.o"; \
-	clang -c "$(RUNTIME_DIR)/llvm_call.S" -o "$$TMP/llvm_call.o"; \
+	clang -O0 -Wno-override-module $(CFLAGS_GC) -DEML_LLVM -DEML_LLVM_STANDALONE -c "$$RT_DIR/runtime.c" -o "$$TMP/runtime.o"; \
+	clang -c "$$RT_DIR/llvm_call.S" -o "$$TMP/llvm_call.o"; \
 	clang -O0 -Wno-override-module "$$TMP/prog.ll" "$$TMP/runtime.o" "$$TMP/llvm_call.o" -o "$$TMP/prog.exe"; \
 	[ -n "$(CFLAGS_GC)" ] && [ "$$BASENAME" = "010fibcps_ll" ] && export EML_HEAP_SIZE=1600; \
 	"$$TMP/prog.exe"
