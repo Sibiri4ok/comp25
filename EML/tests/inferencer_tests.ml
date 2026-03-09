@@ -21,6 +21,12 @@ let pretty_printer_parse_and_infer s =
   | Error e -> Format.printf "Parsing error. %s\n" e
 ;;
 
+let pretty_printer_infer_simple_expression expr =
+  match infer_simple_expression expr with
+  | Ok ty -> Format.printf "%a\n" pp_ty ty
+  | Error e -> Format.printf "Infer error. %a\n" pp_error e
+;;
+
 
 let%expect_test "test_factorial" =
   pretty_printer_parse_and_infer
@@ -310,4 +316,131 @@ let b = singleton true |};
     val a: int list
     val b: bool list
     val singleton: t0 -> t0 list|}]
+;;
+
+let%expect_test "test_nonrec_tuple_pattern_binding" =
+  pretty_printer_parse_and_infer
+    {| let (x, y) = (1, true)
+let main = x |};
+  [%expect
+    {|
+    val main: int
+    val x: int
+    val y: bool|}]
+;;
+
+let%expect_test "test_match_option_none_some" =
+  pretty_printer_parse_and_infer
+    {| let unwrap_or_zero o =
+  match o with
+  | None -> 0
+  | Some x -> x
+let main = unwrap_or_zero None |};
+  [%expect
+    {|
+    val main: int
+    val unwrap_or_zero: int option -> int|}]
+;;
+
+let%expect_test "test_match_list_literal_pattern" =
+  pretty_printer_parse_and_infer
+    {| let sum2 xs =
+  match xs with
+  | [a; b] -> a + b
+  | _ -> 0
+let main = sum2 [1; 2] |};
+  [%expect
+    {|
+    val main: int
+    val sum2: int list -> int|}]
+;;
+
+let%expect_test "test_lambda_wildcard_and_unit_pattern" =
+  pretty_printer_parse_and_infer
+    {| let ignore_first _ y = y
+let run () = ignore_first 1 42
+let main = run () |};
+  [%expect
+    {|
+    val ignore_first: t0 -> t1 -> t1
+    val main: int
+    val run: unit -> int|}]
+;;
+
+
+let%expect_test "test_rec_lhs_not_variable_error" =
+  pretty_printer_parse_and_infer {| let rec Some x = Some 1 |};
+  [%expect {|Infer error. Left-hand side error: Only variables are allowed on the left-hand side of let rec.|}]
+;;
+
+let%expect_test "test_expr_let_rec_in" =
+  pretty_printer_parse_and_infer
+    {| let main =
+  let rec fact n = if n = 0 then 1 else n * fact (n - 1) in
+  fact 4 |};
+  [%expect
+    {|
+    val main: int|}]
+;;
+
+let%expect_test "test_expr_let_rec_and_in" =
+  pretty_printer_infer_simple_expression
+    (ExpLet
+       ( Rec
+       , (PatVariable "f", ExpLambda (PatVariable "x", [], ExpIdent "x"))
+       , [ PatVariable "g", ExpLambda (PatVariable "y", [], ExpIdent "y") ]
+       , ExpApply (ExpIdent "g", ExpConst (ConstInt 1)) ));
+  [%expect {|int|}]
+;;
+
+
+let%expect_test "test_string_const_and_const_pattern" =
+  pretty_printer_parse_and_infer
+    {| let is_hi s =
+  match s with
+  | "hi" -> true
+  | _ -> false
+let main = is_hi "hello" |};
+  [%expect
+    {|
+    val is_hi: string -> bool
+    val main: bool|}]
+;;
+
+let%expect_test "test_ast_exp_list_empty" =
+  pretty_printer_infer_simple_expression (ExpList []);
+  [%expect {|t0 list|}]
+;;
+
+let%expect_test "test_ast_exp_list_non_empty" =
+  pretty_printer_infer_simple_expression
+    (ExpList [ ExpConst (ConstInt 1); ExpConst (ConstInt 2) ]);
+  [%expect {|int list|}]
+;;
+
+let%expect_test "test_ast_exp_option_none" =
+  pretty_printer_infer_simple_expression (ExpOption None);
+  [%expect {|t0 option|}]
+;;
+
+let%expect_test "test_ast_exp_option_some" =
+  pretty_printer_infer_simple_expression (ExpOption (Some (ExpConst (ConstInt 1))));
+  [%expect {|int option|}]
+;;
+
+let%expect_test "test_ast_pattern_option_lambda" =
+  pretty_printer_infer_simple_expression
+    (ExpLambda (PatOption (Some (PatVariable "x")), [], ExpIdent "x"));
+  [%expect {|t0 option -> t0|}]
+;;
+
+let%expect_test "test_ast_pattern_list_lambda" =
+  pretty_printer_infer_simple_expression
+    (ExpLambda (PatList [ PatVariable "x"; PatVariable "y" ], [], ExpIdent "x"));
+  [%expect {|t1 list -> t1|}]
+;;
+
+let%expect_test "test_ast_pattern_unit_lambda" =
+  pretty_printer_infer_simple_expression (ExpLambda (PatUnit, [], ExpConst (ConstInt 1)));
+  [%expect {|unit -> int|}]
 ;;
