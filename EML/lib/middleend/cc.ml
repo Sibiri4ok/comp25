@@ -44,7 +44,7 @@ let rec collect_free_vars = function
     in
     VarSet.union free_vars_in_rhs (VarSet.diff (collect_free_vars body) bound_vars)
   | ExpLambda (pat, pats, exp) ->
-    let bound_vars = union_map_list (fun p -> vars_in_pattern p) (pat :: pats) in
+    let bound_vars = union_map_list vars_in_pattern (pat :: pats) in
     VarSet.diff (collect_free_vars exp) bound_vars
   | ExpApply (e1, e2) -> VarSet.union (collect_free_vars e1) (collect_free_vars e2)
   | ExpFunction ((pat, exp), cases) ->
@@ -92,13 +92,13 @@ let pp_error ppf = function
 
 type 'a t = context -> ('a, error) Result.t
 
-let return x = fun _ -> Ok x
-let fail e = fun _ -> Error e
+let return (value : 'a) : 'a t = fun _ -> Ok value
+let fail (error : error) : 'a t = fun _ -> Error error
 
-let bind m f =
+let bind (computation : 'a t) (next : 'a -> 'b t) : 'b t =
   fun ctx ->
-  match m ctx with
-  | Ok a -> f a ctx
+  match computation ctx with
+  | Ok a -> next a ctx
   | Error e -> Error e
 ;;
 

@@ -39,21 +39,21 @@ module Llvm_backend = struct
     | Not (operand, name) -> Some (build_not operand name builder)
     | Load (load_ty, ptr_value, name) -> Some (build_load load_ty ptr_value name builder)
     | Store (value, ptr_value) ->
-      ignore (build_store value ptr_value builder);
+      let (_ : Llvm.llvalue) = build_store value ptr_value builder in
       None
     | Alloca (alloca_ty, name) -> Some (build_alloca alloca_ty name builder)
     | Call (ft, callee, args, name) -> Some (build_call ft callee args name builder)
     | Ret None ->
-      ignore (build_ret_void builder);
+      let (_ : Llvm.llvalue) = build_ret_void builder in
       None
     | Ret (Some ret_value) ->
-      ignore (build_ret ret_value builder);
+      let (_ : Llvm.llvalue) = build_ret ret_value builder in
       None
     | Br block ->
-      ignore (build_br block builder);
+      let (_ : Llvm.llvalue) = build_br block builder in
       None
     | CondBr (cond, then_bb, else_bb) ->
-      ignore (build_cond_br cond then_bb else_bb builder);
+      let (_ : Llvm.llvalue) = build_cond_br cond then_bb else_bb builder in
       None
     | Phi (incoming, name) -> Some (build_phi incoming name builder)
     | Bitcast (operand, dest_ty, name) ->
@@ -90,12 +90,28 @@ module Llvm_backend = struct
     emit builder (IntToPtr (operand, dest_ty, name))
   ;;
 
-  let store builder value ptr_value = ignore (emit builder (Store (value, ptr_value)))
-  let ret_void builder = ignore (emit builder (Ret None))
-  let ret builder ret_value = ignore (emit builder (Ret (Some ret_value)))
-  let br builder block = ignore (emit builder (Br block))
+  let store builder value ptr_value =
+    let (_ : Llvm.llvalue option) = emit builder (Store (value, ptr_value)) in
+    ()
+  ;;
+
+  let ret_void builder =
+    let (_ : Llvm.llvalue option) = emit builder (Ret None) in
+    ()
+  ;;
+
+  let ret builder ret_value =
+    let (_ : Llvm.llvalue option) = emit builder (Ret (Some ret_value)) in
+    ()
+  ;;
+
+  let br builder block =
+    let (_ : Llvm.llvalue option) = emit builder (Br block) in
+    ()
+  ;;
 
   let cond_br builder cond then_bb else_bb =
-    ignore (emit builder (CondBr (cond, then_bb, else_bb)))
+    let (_ : Llvm.llvalue option) = emit builder (CondBr (cond, then_bb, else_bb)) in
+    ()
   ;;
 end

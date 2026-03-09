@@ -78,15 +78,17 @@ module Make (N : NAMING) = struct
     return pair
   ;;
 
-  let run m init = m init
+  let run m = m
 
   let append (items : instr list) =
     let modify_instr_buffer f =
       modify (fun st -> { st with instr_buffer = f st.instr_buffer })
     in
-    if items = []
-    then return ()
-    else modify_instr_buffer (fun l -> List.fold_left (fun acc it -> it :: acc) l items)
+    match items with
+    | [] -> return ()
+    | _ ->
+      modify_instr_buffer (fun buffer ->
+        List.fold_left (fun acc instruction -> instruction :: acc) buffer items)
   ;;
 end
 

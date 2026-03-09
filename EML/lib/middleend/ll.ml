@@ -37,9 +37,9 @@ let names_in_pattern p =
     | PatConstruct (_, None) -> []
     | PatConstruct (_, Some q) -> collect q
     | PatType (q, _) -> collect q
-    | PatTuple (p1, p2, rest) -> List.concat (List.map collect (p1 :: p2 :: rest))
+    | PatTuple (p1, p2, rest) -> List.concat_map collect (p1 :: p2 :: rest)
     | PatUnit -> []
-    | PatList ps -> List.concat (List.map collect ps)
+    | PatList ps -> List.concat_map collect ps
     | PatOption p_opt ->
       (match p_opt with
        | None -> []
@@ -57,10 +57,10 @@ let rename_pattern env p =
         | Not_found -> s
       in
       PatVariable s'
-    | PatConstruct (id, p_opt) -> PatConstruct (id, Option.map (fun x -> subst x) p_opt)
+    | PatConstruct (id, p_opt) -> PatConstruct (id, Option.map subst p_opt)
     | PatType (p, t) -> PatType (subst p, t)
     | PatList ps -> PatList (List.map subst ps)
-    | PatOption p_opt -> PatOption (Option.map (fun x -> subst x) p_opt)
+    | PatOption p_opt -> PatOption (Option.map subst p_opt)
     | other -> other
   in
   subst p
@@ -208,7 +208,7 @@ module Make (N : NAMING) = struct
       let* extra_structures, rest_binds = lift_binds (inner ctx) more in
       let all_defs =
         names_in_pattern pat
-        @ List.concat (List.map (fun (p, _) -> names_in_pattern p) more)
+        @ List.concat_map (fun (p, _) -> names_in_pattern p) more
       in
       let body_ctx =
         { (inner ctx) with renames = without_bindings ctx.renames all_defs }
@@ -249,20 +249,20 @@ module Make (N : NAMING) = struct
         | [] -> fail RecLetEmptyBinding
       in
       return
-        { structures =
+        { res_body with
+          structures =
             inner_structures
             @ [ SValue (Rec, first_bind, rest_binds) ]
             @ res_body.structures
-        ; expr = res_body.expr
         }
     | ExpLambda (pat, pats, body) when ctx.at_toplevel ->
       let* res = lift_expr (inner ctx) body in
-      return { structures = res.structures; expr = ExpLambda (pat, pats, res.expr) }
+      return { res with expr = ExpLambda (pat, pats, res.expr) }
     | ExpLambda (pat, pats, body) ->
       let* names = take_names 1 in
       let name = List.hd names in
       let args = pat :: pats in
-      let bound = List.concat (List.map names_in_pattern args) in
+      let bound = List.concat_map names_in_pattern args in
       let* res =
         lift_expr { (inner ctx) with renames = without_bindings ctx.renames bound } body
       in
@@ -331,10 +331,10 @@ module Make (N : NAMING) = struct
            (fun e1' e2' e3' -> ExpBranch (e1', e2', Some e3')))
     | ExpConstruct (id, Some e) ->
       let* res = lift_expr (inner ctx) e in
-      return { structures = res.structures; expr = ExpConstruct (id, Some res.expr) }
+      return { res with expr = ExpConstruct (id, Some res.expr) }
     | ExpTypeAnnotation (e, typ) ->
       let* res = lift_expr (inner ctx) e in
-      return { structures = res.structures; expr = ExpTypeAnnotation (res.expr, typ) }
+      return { res with expr = ExpTypeAnnotation (res.expr, typ) }
     | ExpBinOper (op, e1, e2) ->
       pair
         (lift_expr (inner ctx) e1)
@@ -342,7 +342,7 @@ module Make (N : NAMING) = struct
         (fun e1' e2' -> ExpBinOper (op, e1', e2'))
     | ExpUnarOper (op, e) ->
       let* res = lift_expr (inner ctx) e in
-      return { structures = res.structures; expr = ExpUnarOper (op, res.expr) }
+      return { res with expr = ExpUnarOper (op, res.expr) }
     | ExpTuple (e1, e2, rest) ->
       let* first = lift_expr (inner ctx) e1 in
       let* second = lift_expr (inner ctx) e2 in
@@ -357,7 +357,7 @@ module Make (N : NAMING) = struct
     | ExpOption None -> return { structures = []; expr = ExpOption None }
     | ExpOption (Some e) ->
       let* res = lift_expr (inner ctx) e in
-      return { structures = res.structures; expr = ExpOption (Some res.expr) }
+      return { res with expr = ExpOption (Some res.expr) }
 
   and lift_binds (ctx : context) binds : (structure list * (pattern * expr) list) t =
     fold_binds ctx binds (fun ctx _ e -> lift_expr ctx e)

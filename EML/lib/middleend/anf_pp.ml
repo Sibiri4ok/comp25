@@ -1,3 +1,7 @@
+(** Copyright 2025-2026, Victoria Ostrovskaya & Danil Usoltsev *)
+
+(** SPDX-License-Identifier: LGPL-3.0-or-later *)
+
 (* Pretty-printer for ANF expressions *)
 open Stdlib.Format
 open Frontend
@@ -12,7 +16,7 @@ let rec pp_immediate fmt = function
     (match c with
      | ConstInt n -> fprintf fmt "%d" n
      | ConstBool b -> fprintf fmt "%b" b
-     | ConstString s -> fprintf fmt "\"%s\"" s
+     | ConstString s -> fprintf fmt "%S" s
      | ConstChar ch -> fprintf fmt "'%s'" (Char.escaped ch))
   | ImmediateVar x -> fprintf fmt "%s" x
 
@@ -51,14 +55,13 @@ and pp_complex_expr fmt = function
       (pp_print_list ~pp_sep:(fun fmt () -> fprintf fmt " ") pp_immediate)
       all_args
   | ComplexLambda (patterns, body) ->
-    let pp_pattern fmt pat =
-      match pat with
+    let rec pp_pattern fmt = function
       | PatVariable x -> fprintf fmt "%s" x
       | PatConst c ->
         (match c with
          | ConstInt n -> fprintf fmt "%d" n
          | ConstBool b -> fprintf fmt "%b" b
-         | ConstString s -> fprintf fmt "\"%s\"" s
+         | ConstString s -> fprintf fmt "%S" s
          | ConstChar ch -> fprintf fmt "'%s'" (Char.escaped ch))
       | PatTuple (p1, p2, rest) ->
         let all_pats = p1 :: p2 :: rest in
@@ -111,7 +114,6 @@ and pp_anf_expr fmt = function
     fprintf fmt "let %s%s = %a in@ %a" rec_flag name pp_complex_expr v pp_anf_expr body
   | AnfExpr e -> pp_complex_expr fmt e
 
-and pp_anf_bind fmt (name, expr) = fprintf fmt "%s = %a" name pp_anf_expr expr
 and pp_anf_fun_bind fmt (name, _arity, expr) = fprintf fmt "%s = %a" name pp_anf_expr expr
 
 and pp_anf_structure fmt = function

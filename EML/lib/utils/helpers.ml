@@ -1,3 +1,7 @@
+(** Copyright 2025-2026, Victoria Ostrovskaya & Danil Usoltsev *)
+
+(** SPDX-License-Identifier: LGPL-3.0-or-later *)
+
 open Base
 open Frontend
 open Ast
@@ -19,7 +23,7 @@ let rec extract_tuple_pattern_idents acc = function
     let acc'' = extract_tuple_pattern_idents acc' p2 in
     List.fold_left
       rest
-      ~f:(fun current_acc pat -> extract_tuple_pattern_idents current_acc pat)
+      ~f:extract_tuple_pattern_idents
       ~init:acc''
   | PatAny -> "_" :: acc
   | _ -> acc

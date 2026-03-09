@@ -120,8 +120,7 @@ let build_tuple_lets tuple_var indices_pats body =
 ;;
 
 let build_tuple_top_level_bindings tuple_var indices_pats =
-  let rec aux tuple_var indices_pats =
-    match indices_pats with
+  let rec aux tuple_var = function
     | [] -> return []
     | (i, pat) :: rest ->
       let* bind_id = get_var pat in
@@ -186,9 +185,9 @@ let rec anf (expr : expr) (k : immediate -> anf_expr t) : anf_expr t =
         | [] -> fail "application with no arguments"))
   | ExpTuple (exp1, exp2, exp_list) ->
     let all_exprs = exp1 :: exp2 :: exp_list in
-    anf_list all_exprs (fun imm_list ->
-      match imm_list with
-      | imm1 :: imm2 :: rest -> bind_complex_expr (ComplexTuple (imm1, imm2, rest)) k
+    anf_list all_exprs (function
+      | imm1 :: imm2 :: rest ->
+        bind_complex_expr (ComplexTuple (imm1, imm2, rest)) k
       | _ -> fail "Invalid tuple")
   | ExpLambda (pat, pat_list, body) ->
     let params = pat :: pat_list in

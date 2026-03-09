@@ -66,8 +66,7 @@ let spill_caller_saved_vars_to_frame =
 
 let evacuate_reg destination_register =
   let is_register_used environment register =
-    Base.Map.exists environment ~f:(fun location ->
-      match location with
+    Base.Map.exists environment ~f:(function
       | Loc_reg mapped_register -> equal_reg register mapped_register
       | Loc_mem _ -> false)
   in

@@ -132,35 +132,34 @@ let compiler opts : (unit, unit) Result.t =
 (* ------------------------------------------------------------------------- *)
 
 let parse_args () : (opts, unit) Result.t =
-  let input_file = ref default_opts.input_file in
-  let output_file = ref default_opts.output_file in
-  let enable_gc = ref default_opts.enable_gc in
-  let backend = ref Ricsv in
-  let infer_only = ref default_opts.infer_only in
-  let positional_seen = ref false in
-  let open Arg in
-  let spec =
-    [ ( "-backend"
-      , Symbol
-          ([ "ricsv"; "llvm" ], fun s -> backend := if s = "llvm" then Llvm else Ricsv)
-      , " <ricsv|llvm> Code generation backend (default: ricsv)" )
-    ; "-fromfile", String (fun s -> input_file := Some s), " <file> Read source from file"
-    ; "-o", String (fun s -> output_file := Some s), " <file> Write output to file"
-    ; "-gc", Set enable_gc, " Enable GC runtime support"
-    ; "-infer", Set infer_only, " Run only type inference and print inferred types"
-    ]
+  let parse_backend = function
+    | "llvm" -> Ok Llvm
+    | "ricsv" -> Ok Ricsv
+    | _ -> Error ()
   in
-  parse spec (fun _ -> positional_seen := true) "Compiler for custom language";
-  if !positional_seen
-  then Error ()
-  else
-    Ok
-      { input_file = !input_file
-      ; output_file = !output_file
-      ; enable_gc = !enable_gc
-      ; backend = !backend
-      ; infer_only = !infer_only
-      }
+  let rec loop current_opts = function
+    | [] -> Ok current_opts
+    | "-gc" :: rest ->
+      loop { current_opts with enable_gc = true } rest
+    | "-infer" :: rest ->
+      loop { current_opts with infer_only = true } rest
+    | "-fromfile" :: path :: rest ->
+      loop { current_opts with input_file = Some path } rest
+    | "-o" :: path :: rest ->
+      loop { current_opts with output_file = Some path } rest
+    | "-backend" :: backend_name :: rest ->
+      (match parse_backend backend_name with
+       | Ok backend -> loop { current_opts with backend } rest
+       | Error () -> Error ())
+    | argument :: _ when String.length argument > 0 && Char.equal argument.[0] '-' ->
+      Error ()
+    | _positional_argument :: _ ->
+      Error ()
+  in
+  let argv = Array.to_list Sys.argv in
+  match argv with
+  | [] -> Ok default_opts
+  | _program_name :: arguments -> loop default_opts arguments
 ;;
 
 let () =

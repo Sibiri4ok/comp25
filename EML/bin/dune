@@ -1,3 +1,4 @@
 (executable
  (name EML)
+ (modes byte exe)
  (libraries stdio base EML.lib))

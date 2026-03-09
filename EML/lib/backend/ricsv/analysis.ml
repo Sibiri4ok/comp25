@@ -23,8 +23,6 @@ type analysis_result =
   ; resolve : int -> string -> (string * int) option
   }
 
-let arg_regs_count = 8
-
 let sum_by f xs = List.fold_left (fun acc x -> acc + f x) 0 xs
 let max_by f xs = List.fold_left (fun acc x -> max acc (f x)) 0 xs
 
@@ -172,34 +170,46 @@ let analyze (program : anf_program) =
         | AnfEval _ -> None)
       program
   in
-  let generated_name_counts = ref (Base.Map.empty (module Base.String)) in
   let mangle_reserved name = if String.equal name "_start" then "eml_start" else name in
-  let build_asm_name name =
-    let base = mangle_reserved name in
-    let duplicate_index = Base.Map.find !generated_name_counts name |> Option.value ~default:0 in
-    generated_name_counts :=
-      Base.Map.set !generated_name_counts ~key:name ~data:(duplicate_index + 1);
-    if duplicate_index = 0 then base else base ^ "_" ^ Int.to_string duplicate_index
-  in
-  let functions =
-    List.map
-      (fun ( func_name
-           , _arity
-           , params
-           , body
-           , slots_count
-           , max_stack_args
-           , max_create_tuple_array_bytes ) ->
-         { func_name
-         ; asm_name = build_asm_name func_name
-         ; params
-         ; body
-         ; slots_count
-         ; max_stack_args
-         ; max_create_tuple_array_bytes
-         })
+  let functions, _ =
+    List.fold_left
+      (fun (reversed_functions, generated_name_counts)
+        ( func_name
+        , _arity
+        , params
+        , body
+        , slots_count
+        , max_stack_args
+        , max_create_tuple_array_bytes ) ->
+         let base_asm_name = mangle_reserved func_name in
+         let duplicate_index =
+           Base.Map.find generated_name_counts func_name |> Option.value ~default:0
+         in
+         let updated_generated_name_counts =
+           Base.Map.set
+             generated_name_counts
+             ~key:func_name
+             ~data:(duplicate_index + 1)
+         in
+         let asm_name =
+           if duplicate_index = 0
+           then base_asm_name
+           else base_asm_name ^ "_" ^ Int.to_string duplicate_index
+         in
+         ( { func_name
+           ; asm_name
+           ; params
+           ; body
+           ; slots_count
+           ; max_stack_args
+           ; max_create_tuple_array_bytes
+           }
+           :: reversed_functions
+         , updated_generated_name_counts ))
+      ([], Base.Map.empty (module Base.String))
       analyzed_functions_raw
   in
+  let functions = List.rev functions in
   let has_main = List.exists (fun fn -> String.equal fn.func_name "main") functions in
   let functions =
     if has_main

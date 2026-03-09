@@ -6,14 +6,16 @@ open Middleend.Anf
 
 let gen_program ~enable_gc ppf (program : anf_program) : (unit, string) Result.t =
   let temp_ll_path = Filename.temp_file "eml_llvm" ".ll" in
+  let remove_temp_file_if_exists () =
+    if Sys.file_exists temp_ll_path then Sys.remove temp_ll_path
+  in
   match Generator.gen_program ~output_file:temp_ll_path ~enable_gc program with
   | Error err ->
-    (try Sys.remove temp_ll_path with
-     | _ -> ());
+    remove_temp_file_if_exists ();
     Error err
   | Ok () ->
     let content = In_channel.with_open_text temp_ll_path In_channel.input_all in
-    Sys.remove temp_ll_path;
+    remove_temp_file_if_exists ();
     Format.fprintf ppf "%s" content;
     Ok ()
 ;;

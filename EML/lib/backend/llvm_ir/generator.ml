@@ -15,8 +15,6 @@ let tag_int n = 1 + (n lsl 1)
 let tag_bool b = if b then 4 else 2
 let tag_char c = tag_int (Char.code c)
 let context = global_context ()
-let my_module = ref (create_module context "EML")
-let current_module () = !my_module
 let builder = builder context
 let int_t = i64_type context
 let i32_t = i32_type context
@@ -44,50 +42,14 @@ let predefined_funcs =
     predefined_runtime_funcs
 ;;
 
-let variable_value_table : (string, llvalue) Hashtbl.t =
-  Hashtbl.create (List.length predefined_funcs * 4)
-;;
-
-let variable_type_table : (string, lltype) Hashtbl.t =
-  Hashtbl.create (List.length predefined_funcs * 4)
-;;
-
-let reset_for_new_program () =
-  my_module := create_module context "EML";
-  Hashtbl.clear variable_value_table;
-  Hashtbl.clear variable_type_table
-;;
-
-let predefined_init () =
-  let module_ = current_module () in
-  List.iter
-    (fun (str, t) ->
-       let func = declare_function str t module_ in
-       Hashtbl.add variable_type_table str t;
-       Hashtbl.add variable_value_table str func)
+let predefined_init current_module =
+  List.fold_left
+    (fun (value_env, type_env) (function_name, function_type) ->
+       let function_value = declare_function function_name function_type current_module in
+       ( Base.Map.set value_env ~key:function_name ~data:function_value
+       , Base.Map.set type_env ~key:function_name ~data:function_type ))
+    (Base.Map.empty (module Base.String), Base.Map.empty (module Base.String))
     predefined_funcs
-;;
-
-let snapshot_envs () =
-  let value_env =
-    Hashtbl.fold
-      (fun key value acc -> Base.Map.set acc ~key ~data:value)
-      variable_value_table
-      (Base.Map.empty (module Base.String))
-  in
-  let type_env =
-    Hashtbl.fold
-      (fun key value acc -> Base.Map.set acc ~key ~data:value)
-      variable_type_table
-      (Base.Map.empty (module Base.String))
-  in
-  value_env, type_env
-;;
-
-let emit_value builder instr =
-  match emit builder instr with
-  | Some v -> Ok v
-  | None -> Error "emit_value: expected value"
 ;;
 
 let emit_void builder instr : (unit, string) Result.t =
@@ -101,9 +63,8 @@ let emit_void_st builder instr =
   | Error e -> fail e
 ;;
 
-let with_optional_value opt =
-  match opt with
-  | Some v -> return v
+let with_optional_value = function
+  | Some value -> return value
   | None -> fail "Llvm_backend: expected value"
 ;;
 
@@ -112,7 +73,8 @@ let lookup_func name =
   match value_opt with
   | Some func -> return func
   | None ->
-    (match lookup_function name (current_module ()) with
+    let* state = get in
+    (match lookup_function name state.current_module with
      | Some func -> return func
      | None -> fail ("Couldn't find value for key: " ^ name))
 ;;
@@ -667,7 +629,7 @@ let declare_function (func_layout : function_layout) state =
   let llvm_name =
     if func_layout.func_name = "main" then "eml_main" else func_layout.asm_name
   in
-  let func = declare_function llvm_name func_type (current_module ()) in
+  let func = declare_function llvm_name func_type state.current_module in
   let key = if func_layout.func_name = "main" then "main" else func_layout.asm_name in
   { state with
     value_env = Base.Map.set state.value_env ~key ~data:func
@@ -724,18 +686,18 @@ let gen_function
             else fail "gen_function: param index out of bounds"
           in
           set_value_name name param_value;
-          (match enable_gc with
-           | true ->
-             let* gc_allocas = get_gc_allocas in
-             let* allocas_map =
-               match gc_allocas with
-               | Some m -> return m
-               | None -> fail "gen_function: enable_gc but gc_allocas not set"
-             in
-             let* alloca_ptr = with_optional_value (alloca builder ptr_t name) in
-             store builder param_value alloca_ptr;
-             set_gc_allocas (Some (Base.Map.set allocas_map ~key:name ~data:alloca_ptr))
-           | false -> set_value name param_value)
+          if enable_gc
+          then
+            let* gc_allocas = get_gc_allocas in
+            let* allocas_map =
+              match gc_allocas with
+              | Some map -> return map
+              | None -> fail "gen_function: enable_gc but gc_allocas not set"
+            in
+            let* alloca_ptr = with_optional_value (alloca builder ptr_t name) in
+            store builder param_value alloca_ptr;
+            set_gc_allocas (Some (Base.Map.set allocas_map ~key:name ~data:alloca_ptr))
+          else set_value name param_value
         | ImmediateConst _ -> return ())
     in
     let* body_value = gen_anf func_layout.body in
@@ -771,13 +733,13 @@ let gen_function
 ;;
 
 let gen_program ~output_file ~enable_gc (program : anf_program) =
-  reset_for_new_program ();
-  predefined_init ();
-  let value_env, type_env = snapshot_envs () in
+  let llvm_module = create_module context "EML" in
+  let value_env, type_env = predefined_init llvm_module in
   let { functions; resolve; _ } = analyze program in
   let initial_state : Generator_state.state =
     { value_env
     ; type_env
+    ; current_module = llvm_module
     ; gc_allocas = None
     ; gc_entry_block = None
     ; naming_state = Default_naming.init
@@ -811,6 +773,6 @@ let gen_program ~output_file ~enable_gc (program : anf_program) =
   with
   | Error err -> Error err
   | Ok _ ->
-    print_module output_file (current_module ());
+    print_module output_file llvm_module;
     Ok ()
 ;;

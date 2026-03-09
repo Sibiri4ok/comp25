@@ -91,20 +91,28 @@ let analyze (program : anf_program) =
         | AnfEval _ -> None)
       program
   in
-  let counts = ref (Base.Map.empty (module Base.String)) in
   let mangle_reserved name = if String.equal name "_start" then "eml_start" else name in
-  let asm_name name =
-    let base = mangle_reserved name in
-    let n = Base.Map.find !counts name |> Option.value ~default:0 in
-    counts := Base.Map.set !counts ~key:name ~data:(n + 1);
-    if n = 0 then base else base ^ "_" ^ Int.to_string n
-  in
-  let functions =
-    List.map
-      (fun (func_name, _arity, params, body, slots_count) ->
-         { func_name; asm_name = asm_name func_name; params; body; slots_count })
+  let functions, _ =
+    List.fold_left
+      (fun (reversed_functions, counts) (func_name, _arity, params, body, slots_count) ->
+         let base_asm_name = mangle_reserved func_name in
+         let duplicate_index =
+           Base.Map.find counts func_name |> Option.value ~default:0
+         in
+         let updated_counts =
+           Base.Map.set counts ~key:func_name ~data:(duplicate_index + 1)
+         in
+         let asm_name =
+           if duplicate_index = 0
+           then base_asm_name
+           else base_asm_name ^ "_" ^ Int.to_string duplicate_index
+         in
+         ( { func_name; asm_name; params; body; slots_count } :: reversed_functions
+         , updated_counts ))
+      ([], Base.Map.empty (module Base.String))
       raw
   in
+  let functions = List.rev functions in
   let has_main =
     List.exists (fun func_layout -> String.equal func_layout.func_name "main") functions
   in

@@ -28,6 +28,7 @@ module Make (N : NAMING) = struct
   type state =
     { value_env : (string, llvalue, Base.String.comparator_witness) Base.Map.t
     ; type_env : (string, lltype, Base.String.comparator_witness) Base.Map.t
+    ; current_module : llmodule
     ; gc_allocas : (string, llvalue, Base.String.comparator_witness) Base.Map.t option
     ; gc_entry_block : llbasicblock option
     ; naming_state : N.t
@@ -119,7 +120,7 @@ module Make (N : NAMING) = struct
     return triple
   ;;
 
-  let run m init = m init
+  let run m = m
 end
 
 include Make (Default_naming)
