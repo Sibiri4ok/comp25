@@ -52,46 +52,60 @@ let bin_op dst op left_reg right_reg : (instr list, string) result =
 
 let bin_oper_to_string = Utils.Pretty_printer.string_of_bin_op
 
-let vars_in_caller_saved_regs env =
-  Base.Map.to_alist env
-  |> List.filter_map (fun (name, loc) ->
-    match loc with
-    | Loc_reg r when is_caller_saved r -> Some (name, r)
+let vars_in_caller_saved_regs environment =
+  Base.Map.to_alist environment
+  |> List.filter_map (fun (variable_name, variable_location) ->
+    match variable_location with
+    | Loc_reg register when is_caller_saved register -> Some (variable_name, register)
     | _ -> None)
 ;;
 
-let indices_of_args_to_spill state exps =
-  let rewrites_result_reg = function
+let indices_of_args_to_spill generation_state immediate_arguments =
+  let argument_overwrites_result_register = function
     | ImmediateConst _ -> false
-    | ImmediateVar id -> Base.Map.mem state.arity_map id
+    | ImmediateVar function_name -> Base.Map.mem generation_state.arity_map function_name
   in
-  Base.List.foldi exps ~init:[] ~f:(fun i acc arg ->
-    if rewrites_result_reg arg then i :: acc else acc)
+  Base.List.foldi immediate_arguments ~init:[] ~f:(fun argument_index spilled_indices immediate_argument ->
+    if argument_overwrites_result_register immediate_argument
+    then argument_index :: spilled_indices
+    else spilled_indices)
   |> List.rev
 ;;
 
 type call_style =
   | Nullary of string
-  | Curry_chain of
-      { fname : string
+  | CurryChain of
+      { function_name : string
       ; arity : int
-      ; first_args : immediate list
-      ; rest_args : immediate list
+      ; initial_arguments : immediate list
+      ; remaining_arguments : immediate list
       }
   | Direct of
-      { fname : string
-      ; args : immediate list
+      { function_name : string
+      ; arguments : immediate list
       }
-  | Via_apply_nargs of
-      { fname : string
-      ; nargs : int
-      ; args : immediate list
+  | ViaApplyNargs of
+      { function_name : string
+      ; argument_count : int
+      ; arguments : immediate list
       }
 
-let classify_call ~nargs ~callee_arity_opt ~fname ~args : call_style =
+let classify_call
+      ~argument_count
+      ~callee_arity_opt
+      ~function_name
+      ~arguments
+  : call_style
+  =
   match callee_arity_opt with
-  | Some 0 when nargs = 1 -> Nullary fname
-  | Some arity when nargs > arity -> Curry_chain { fname; arity; first_args = Base.List.take args arity; rest_args = Base.List.drop args arity }
-  | Some arity when nargs = arity -> Direct { fname; args }
-  | _ -> Via_apply_nargs { fname; nargs; args }
+  | Some 0 when argument_count = 1 -> Nullary function_name
+  | Some arity when argument_count > arity ->
+    CurryChain
+      { function_name
+      ; arity
+      ; initial_arguments = Base.List.take arguments arity
+      ; remaining_arguments = Base.List.drop arguments arity
+      }
+  | Some arity when argument_count = arity -> Direct { function_name; arguments }
+  | _ -> ViaApplyNargs { function_name; argument_count; arguments }
 ;;

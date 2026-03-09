@@ -77,7 +77,7 @@ module Riscv_backend = struct
     | Ret -> fprintf ppf "ret"
   ;;
 
-  let tag_int n = 1 + (n lsl 1)
+  let tag_int n = 2 * n + 1
   let fp = S 0
   let sp = SP
   let ra = RA
@@ -129,18 +129,18 @@ module Riscv_backend = struct
   (* addi/sd/ld immediate is 12-bit signed: -2048 .. 2047 *)
   let max_addi_imm = 2048
 
-  let rec sub_sp n =
-    if n <= 0
+  let rec sub_sp bytes_to_subtract =
+    if bytes_to_subtract <= 0
     then []
-    else if n <= max_addi_imm
-    then addi sp sp (-n)
-    else addi sp sp (-max_addi_imm) @ sub_sp (n - max_addi_imm)
+    else if bytes_to_subtract <= max_addi_imm
+    then addi sp sp (-bytes_to_subtract)
+    else addi sp sp (-max_addi_imm) @ sub_sp (bytes_to_subtract - max_addi_imm)
   ;;
 
-  let addi_or_li_add rd rs imm =
-    if imm >= -max_addi_imm && imm <= max_addi_imm - 1
-    then addi rd rs imm
-    else li t0 imm @ add rd rs t0
+  let addi_or_li_add destination_register source_register immediate_value =
+    if immediate_value >= -max_addi_imm && immediate_value <= max_addi_imm - 1
+    then addi destination_register source_register immediate_value
+    else li t0 immediate_value @ add destination_register source_register t0
   ;;
 
   (* Store at sp+offset; use direct sd when offset in 12-bit range *)

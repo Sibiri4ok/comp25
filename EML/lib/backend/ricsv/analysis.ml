@@ -48,9 +48,9 @@ and slots_in_cexpr = function
        +8 for spill_caller_saved_vars_to_frame at start of every invocation (can spill a0-a7).
        +N when nargs >= 2: margin so partial stays above argv (confirmed: overwrite → eml_applyN gets c=0x3). *)
     let args = first :: second :: rest in
-    let nargs = List.length args in
-    let extra = if nargs >= 2 then 12 else 0 in
-    1 + 8 + nargs + extra + sum_by slots_in_imm args
+    let argument_count = List.length args in
+    let additional_margin = if argument_count >= 2 then 12 else 0 in
+    1 + 8 + argument_count + additional_margin + sum_by slots_in_imm args
   | ComplexOption None -> 0
   | ComplexOption (Some imm) -> slots_in_imm imm
   | ComplexLambda (_, body) -> slots_in_anf body
@@ -71,11 +71,11 @@ let rec max_stack_args_cexpr = function
   | ComplexField (imm, _) -> max_stack_args_imm imm
   | ComplexList imm_list -> max_by max_stack_args_imm imm_list
   | ComplexApp (_first, second, rest) ->
-    let nargs = 1 + List.length rest in
+    let argument_count = 1 + List.length rest in
     (* Reserve enough for largest call: eml_applyN needs nargs words; direct needs max(0, nargs-8). *)
-    let need = nargs in
-    let in_args = max_by max_stack_args_imm (second :: rest) in
-    max need in_args
+    let required_stack_words = argument_count in
+    let max_nested_argument_pressure = max_by max_stack_args_imm (second :: rest) in
+    max required_stack_words max_nested_argument_pressure
   | ComplexOption None -> 0
   | ComplexOption (Some imm) -> max_stack_args_imm imm
   | ComplexLambda (_, body) -> max_stack_args_anf body
@@ -104,9 +104,9 @@ let rec max_create_tuple_array_cexpr = function
   | ComplexField (imm, _) -> max_create_tuple_array_imm imm
   | ComplexList imm_list ->
     (* Each cons adds 16 bytes; they accumulate along the list build *)
-    let per_cons = 2 * word_size in
-    let from_elts = sum_by max_create_tuple_array_imm imm_list in
-    (per_cons * List.length imm_list) + from_elts
+    let bytes_per_cons_cell = 2 * word_size in
+    let bytes_from_elements = sum_by max_create_tuple_array_imm imm_list in
+    (bytes_per_cons_cell * List.length imm_list) + bytes_from_elements
   | ComplexApp (_f, second, rest) ->
     max_by max_create_tuple_array_imm (second :: rest)
   | ComplexOption None -> 0
@@ -135,18 +135,20 @@ let rec params_of_anf = function
           | _ -> None)
         pats
     in
-    let rest, inner = params_of_anf body in
-    imms @ rest, inner
+    let remaining_parameters, inner_body = params_of_anf body in
+    imms @ remaining_parameters, inner_body
   | other -> [], other
 ;;
 
 let arity_map_of_program (program : anf_program) =
-  let add_fun_arity map (id, arity, _) = Base.Map.set map ~key:id ~data:arity in
+  let add_function_arity map (function_identifier, arity, _) =
+    Base.Map.set map ~key:function_identifier ~data:arity
+  in
   List.fold_left
     (fun map -> function
-       | AnfValue (_, (fid, arity, _), and_binds) ->
-         let map = Base.Map.set map ~key:fid ~data:arity in
-         List.fold_left add_fun_arity map and_binds
+       | AnfValue (_, (function_identifier, arity, _), and_binds) ->
+         let map = Base.Map.set map ~key:function_identifier ~data:arity in
+         List.fold_left add_function_arity map and_binds
        | _ -> map)
     (Base.Map.empty (module Base.String))
     program
@@ -154,7 +156,7 @@ let arity_map_of_program (program : anf_program) =
 
 let analyze (program : anf_program) =
   let arity_map = arity_map_of_program program in
-  let raw =
+  let analyzed_functions_raw =
     List.filter_map
       (function
         | AnfValue (_, (func_name, arity, body), _) ->
@@ -170,13 +172,14 @@ let analyze (program : anf_program) =
         | AnfEval _ -> None)
       program
   in
-  let counts = ref (Base.Map.empty (module Base.String)) in
+  let generated_name_counts = ref (Base.Map.empty (module Base.String)) in
   let mangle_reserved name = if String.equal name "_start" then "eml_start" else name in
-  let asm_name name =
+  let build_asm_name name =
     let base = mangle_reserved name in
-    let n = Base.Map.find !counts name |> Option.value ~default:0 in
-    counts := Base.Map.set !counts ~key:name ~data:(n + 1);
-    if n = 0 then base else base ^ "_" ^ Int.to_string n
+    let duplicate_index = Base.Map.find !generated_name_counts name |> Option.value ~default:0 in
+    generated_name_counts :=
+      Base.Map.set !generated_name_counts ~key:name ~data:(duplicate_index + 1);
+    if duplicate_index = 0 then base else base ^ "_" ^ Int.to_string duplicate_index
   in
   let functions =
     List.map
@@ -188,14 +191,14 @@ let analyze (program : anf_program) =
            , max_stack_args
            , max_create_tuple_array_bytes ) ->
          { func_name
-         ; asm_name = asm_name func_name
+         ; asm_name = build_asm_name func_name
          ; params
          ; body
          ; slots_count
          ; max_stack_args
          ; max_create_tuple_array_bytes
          })
-      raw
+      analyzed_functions_raw
   in
   let has_main = List.exists (fun fn -> String.equal fn.func_name "main") functions in
   let functions =
@@ -217,17 +220,17 @@ let analyze (program : anf_program) =
   let arity_map =
     if has_main then arity_map else Base.Map.set arity_map ~key:"main" ~data:0
   in
-  let resolver func_index var_name =
-    let rec find = function
+  let resolver current_function_index variable_name =
+    let rec find_visible_function = function
       | i when i < 0 -> None
       | i ->
         (match Base.List.nth functions i with
          | None -> None
-         | Some fn when String.equal fn.func_name var_name ->
+         | Some fn when String.equal fn.func_name variable_name ->
            Some (fn.asm_name, List.length fn.params)
-         | Some _ -> find (i - 1))
+         | Some _ -> find_visible_function (i - 1))
     in
-    find (func_index - 1)
+    find_visible_function (current_function_index - 1)
   in
   { arity_map; functions; resolve = resolver }
 ;;
