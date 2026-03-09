@@ -4,6 +4,7 @@
 
 open Frontend.Ast
 open Middleend.Anf
+open Runtime.Primitives
 
 let word_size = 8
 
@@ -168,7 +169,11 @@ let analyze (program : anf_program) =
         | AnfEval _ -> None)
       program
   in
-  let mangle_reserved name = if String.equal name "_start" then "eml_start" else name in
+  let mangle_reserved name =
+    if is_reserved name then "eml_" ^ name
+    else if String.equal name "_start" then "eml_start"
+    else name
+  in
   let functions, _ =
     List.fold_left
       (fun (reversed_functions, generated_name_counts)

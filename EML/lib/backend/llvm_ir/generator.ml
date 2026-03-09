@@ -253,7 +253,7 @@ let gen_binop_native op left_v right_v =
     let* r = untag_int_val right_v in
     let* v = with_optional_value (sdiv builder l r "sdiv") in
     tag_int_result v
-  | GretestEqual ->
+  | GreatestEqual ->
     let* l = untag_int_val left_v in
     let* r = untag_int_val right_v in
     let* v = with_optional_value (icmp builder Icmp.Sge l r "icmp_sge") in
@@ -625,14 +625,10 @@ and gen_anf = function
 let declare_function (func_layout : function_layout) state =
   let arg_types = Array.make (List.length func_layout.params) ptr_t in
   let func_type = function_type ptr_t arg_types in
-  let llvm_name =
-    if func_layout.func_name = "main" then "eml_main" else func_layout.asm_name
-  in
-  let func = declare_function llvm_name func_type state.current_module in
-  let key = if func_layout.func_name = "main" then "main" else func_layout.asm_name in
+  let func = declare_function func_layout.asm_name func_type state.current_module in
   { state with
-    value_env = Base.Map.set state.value_env ~key ~data:func
-  ; type_env = Base.Map.set state.type_env ~key ~data:func_type
+    value_env = Base.Map.set state.value_env ~key:func_layout.asm_name ~data:func
+  ; type_env = Base.Map.set state.type_env ~key:func_layout.asm_name ~data:func_type
   }
 ;;
 
@@ -658,10 +654,7 @@ let gen_function
   let comp =
     let* state = get in
     let* () = put { state with current_func_index = func_index } in
-    let* func, _ =
-      lookup_func_type
-        (if func_layout.func_name = "main" then "main" else func_layout.asm_name)
-    in
+    let* func, _ = lookup_func_type func_layout.asm_name in
     let entry_block = append_block context "entry" func in
     position_at_end entry_block builder;
     let* () = if enable_gc && is_entry then emit_gc_prologue else return () in
@@ -725,7 +718,7 @@ let gen_function
     in
     put
       { state with
-        value_env = Base.Map.set value_env ~key:func_layout.func_name ~data:func
+        value_env = Base.Map.set value_env ~key:func_layout.asm_name ~data:func
       }
   in
   run comp initial_state

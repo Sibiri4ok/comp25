@@ -29,9 +29,6 @@ and anf_expr =
 [@@deriving show { with_path = false }]
 
 type arity = int
-
-val pp_arity : Format.formatter -> arity -> unit
-
 type anf_bind = ident * anf_expr [@@deriving show { with_path = false }]
 type anf_fun_bind = ident * arity * anf_expr [@@deriving show { with_path = false }]
 

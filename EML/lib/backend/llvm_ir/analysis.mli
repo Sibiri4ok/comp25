@@ -9,7 +9,6 @@ type function_layout =
   ; asm_name : string
   ; params : immediate list
   ; body : anf_expr
-  ; slots_count : int
   }
 
 type analysis_result =
@@ -17,9 +16,5 @@ type analysis_result =
   ; functions : function_layout list
   ; resolve : int -> string -> (string * int) option
   }
-
-val arity_map_of_program
-  :  anf_program
-  -> (string, int, Base.String.comparator_witness) Base.Map.t
 
 val analyze : anf_program -> analysis_result

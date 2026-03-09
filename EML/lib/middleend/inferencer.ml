@@ -4,6 +4,9 @@
 
 (* Template: https://gitlab.com/Kakadu/fp2020course-materials/-/tree/master/code/miniml?ref_type=heads*)
 
+(* Inference state is purely immutable: no Hashtbl, no [ref] or [mutable]. We use
+   [Map] (tree-like) for [var_levels] and thread state through the monad. *)
+
 open Base
 open Frontend.Ast
 open Stdlib.Format
@@ -452,7 +455,7 @@ let rec infer_pattern env = function
 ;;
 
 let infer_binop_type = function
-  | Equal | NotEqual | GreaterThan | GretestEqual | LowerThan | LowestEqual ->
+  | Equal | NotEqual | GreaterThan | GreatestEqual | LowerThan | LowestEqual ->
     fresh_var >>| fun fresh_ty -> fresh_ty, fresh_ty, TyPrim "bool"
   | Plus | Minus | Multiply | Division -> return (TyPrim "int", TyPrim "int", TyPrim "int")
   | And | Or -> return (TyPrim "bool", TyPrim "bool", TyPrim "bool")

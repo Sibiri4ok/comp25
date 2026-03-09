@@ -65,7 +65,7 @@ entry:
   ret ptr inttoptr (i64 -9 to ptr)
 }
 
-define ptr @eml_main() {
+define ptr @main() {
 entry:
   ret ptr inttoptr (i64 1 to ptr)
 }
@@ -116,7 +116,7 @@ entry:
   ret ptr inttoptr (i64 2 to ptr)
 }
 
-define ptr @eml_main() {
+define ptr @main() {
 entry:
   ret ptr inttoptr (i64 1 to ptr)
 }
@@ -162,7 +162,7 @@ declare ptr @print_gc_status()
 ; Function Attrs: nocallback nofree nosync nounwind willreturn memory(none)
 declare ptr @llvm.frameaddress.p0(i32 immarg) #0
 
-define ptr @eml_main() {
+define ptr @main() {
 entry:
   ret ptr inttoptr (i64 1 to ptr)
 }
@@ -208,7 +208,7 @@ declare ptr @print_gc_status()
 ; Function Attrs: nocallback nofree nosync nounwind willreturn memory(none)
 declare ptr @llvm.frameaddress.p0(i32 immarg) #0
 
-define ptr @eml_main() {
+define ptr @main() {
 entry:
   ret ptr inttoptr (i64 113 to ptr)
 }
@@ -273,7 +273,7 @@ let%expect_test "double_fn" =
       ret ptr %result_int
     }
 
-    define ptr @eml_main() {
+    define ptr @main() {
     entry:
       %direct_double = call ptr @double(ptr inttoptr (i64 43 to ptr))
       ret ptr %direct_double
@@ -352,7 +352,7 @@ let%expect_test "abs_fn" =
       ret ptr %ite_result
     }
 
-    define ptr @eml_main() {
+    define ptr @main() {
     entry:
       %direct_abs = call ptr @abs(ptr inttoptr (i64 15 to ptr))
       ret ptr %direct_abs
@@ -434,7 +434,7 @@ let%expect_test "nested_calls" =
       ret ptr %result_int
     }
 
-    define ptr @eml_main() {
+    define ptr @main() {
     entry:
       %direct_sum_of_squares = call ptr @sum_of_squares(ptr inttoptr (i64 7 to ptr), ptr inttoptr (i64 9 to ptr))
       ret ptr %direct_sum_of_squares
@@ -532,7 +532,7 @@ let%expect_test "fibonacci" =
       ret ptr %ite_result
     }
 
-    define ptr @eml_main() {
+    define ptr @main() {
     entry:
       %direct_fib = call ptr @fib(ptr inttoptr (i64 13 to ptr))
       ret ptr %direct_fib
@@ -592,7 +592,7 @@ let%expect_test "is_positive" =
       ret ptr %result_bool
     }
 
-    define ptr @eml_main() {
+    define ptr @main() {
     entry:
       %direct_is_positive = call ptr @is_positive(ptr inttoptr (i64 85 to ptr))
       ret ptr %direct_is_positive
@@ -666,7 +666,7 @@ let%expect_test "mul3" =
       ret ptr %result_int13
     }
 
-    define ptr @eml_main() {
+    define ptr @main() {
     entry:
       %direct_mul3 = call ptr @mul3(ptr inttoptr (i64 5 to ptr), ptr inttoptr (i64 7 to ptr), ptr inttoptr (i64 9 to ptr))
       ret ptr %direct_mul3
@@ -745,7 +745,7 @@ let%expect_test "test1" =
       ret ptr %ite_result
     }
 
-    define ptr @eml_main() {
+    define ptr @main() {
     entry:
       br i1 false, label %then_1, label %else_1
 
@@ -900,7 +900,7 @@ let%expect_test "codegen closure fn with 10 arg" =
       ret ptr %result_int53
     }
 
-    define ptr @eml_main() {
+    define ptr @main() {
     entry:
       %boxed_alloc_closure = call ptr @alloc_closure(ptr @add, i64 7)
       br label %apply_step_0

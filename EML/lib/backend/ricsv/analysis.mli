@@ -20,8 +20,4 @@ type analysis_result =
   ; resolve : int -> string -> (string * int) option
   }
 
-val arity_map_of_program
-  :  anf_program
-  -> (string, int, Base.String.comparator_witness) Base.Map.t
-
 val analyze : anf_program -> analysis_result

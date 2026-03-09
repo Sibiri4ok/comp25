@@ -4,13 +4,13 @@
 
 open Frontend.Ast
 open Middleend.Anf
+open Runtime.Primitives
 
 type function_layout =
   { func_name : string
   ; asm_name : string
   ; params : immediate list
   ; body : anf_expr
-  ; slots_count : int
   }
 
 type analysis_result =
@@ -18,39 +18,6 @@ type analysis_result =
   ; functions : function_layout list
   ; resolve : int -> string -> (string * int) option
   }
-
-let rec slots_in_imm = function
-  | ImmediateVar _ | ImmediateConst _ -> 0
-
-and slots_in_cexpr = function
-  | ComplexImmediate imm -> slots_in_imm imm
-  | ComplexUnit -> 0
-  | ComplexBinOper (_, left, right) -> slots_in_imm left + slots_in_imm right
-  | ComplexUnarOper (_, imm) -> slots_in_imm imm
-  | ComplexTuple (first, second, rest) ->
-    List.fold_left
-      (fun slot_count expr -> slot_count + slots_in_imm expr)
-      0
-      (first :: second :: rest)
-  | ComplexField (imm, _) -> slots_in_imm imm
-  | ComplexList imm_list ->
-    List.fold_left (fun slot_count expr -> slot_count + slots_in_imm expr) 0 imm_list
-  | ComplexApp (_, second, rest) ->
-    1
-    + List.fold_left
-        (fun slot_count expr -> slot_count + slots_in_imm expr)
-        0
-        (second :: rest)
-  | ComplexOption None -> 0
-  | ComplexOption (Some imm) -> slots_in_imm imm
-  | ComplexLambda (_, body) -> slots_in_anf body
-  | ComplexBranch (cond, then_expr, else_expr) ->
-    slots_in_imm cond + slots_in_anf then_expr + slots_in_anf else_expr
-
-and slots_in_anf = function
-  | AnfExpr cexp -> slots_in_cexpr cexp
-  | AnfLet (_, _, cexp, cont) -> 1 + slots_in_cexpr cexp + slots_in_anf cont
-;;
 
 let rec params_of_anf = function
   | AnfExpr (ComplexLambda (pats, body)) ->
@@ -87,14 +54,18 @@ let analyze (program : anf_program) =
       (function
         | AnfValue (_, (func_name, arity, body), _) ->
           let params, body = params_of_anf body in
-          Some (func_name, arity, params, body, slots_in_anf body)
+          Some (func_name, arity, params, body)
         | AnfEval _ -> None)
       program
   in
-  let mangle_reserved name = if String.equal name "_start" then "eml_start" else name in
+  let mangle_reserved name =
+    if is_reserved name then "eml_" ^ name
+    else if String.equal name "_start" then "eml_start"
+    else name
+  in
   let functions, _ =
     List.fold_left
-      (fun (reversed_functions, counts) (func_name, _arity, params, body, slots_count) ->
+      (fun (reversed_functions, counts) (func_name, _arity, params, body) ->
          let base_asm_name = mangle_reserved func_name in
          let duplicate_index =
            Base.Map.find counts func_name |> Option.value ~default:0
@@ -107,8 +78,7 @@ let analyze (program : anf_program) =
            then base_asm_name
            else base_asm_name ^ "_" ^ Int.to_string duplicate_index
          in
-         ( { func_name; asm_name; params; body; slots_count } :: reversed_functions
-         , updated_counts ))
+         { func_name; asm_name; params; body } :: reversed_functions, updated_counts)
       ([], Base.Map.empty (module Base.String))
       raw
   in
@@ -125,7 +95,6 @@ let analyze (program : anf_program) =
         ; asm_name = "main"
         ; params = []
         ; body = AnfExpr (ComplexImmediate (ImmediateConst (ConstInt 0)))
-        ; slots_count = 0
         }
       in
       functions @ [ synthetic_main ])

@@ -13,4 +13,3 @@ val pp_pattern : Format.formatter -> pattern -> unit
 val pp_expr : Format.formatter -> expr -> unit
 val pp_structure_item : Format.formatter -> structure -> unit
 val pp_structure : Format.formatter -> structure list -> unit
-val pp_program : Format.formatter -> structure list -> unit

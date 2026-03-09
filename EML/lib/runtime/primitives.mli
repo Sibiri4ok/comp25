@@ -2,8 +2,6 @@
 
 (** SPDX-License-Identifier: LGPL-3.0-or-later *)
 
-val predefined_runtime_op_names : string list
-
 type llvm_arg =
   | Ptr
   | Int
@@ -22,3 +20,7 @@ type runtime_func_sig =
 
 val predefined_runtime_funcs : runtime_func_sig list
 val runtime_primitive_arities : (string * int) list
+
+(** Names reserved for runtime; user functions with these names get [eml_<name>] as symbol. *)
+val reserved_function_names : string list
+val is_reserved : string -> bool

@@ -275,7 +275,7 @@ let compare =
     ; parse_expr_bin_oper NotEqual "<>"
     ; parse_expr_bin_oper LowestEqual "<="
     ; parse_expr_bin_oper LowerThan "<"
-    ; parse_expr_bin_oper GretestEqual ">="
+    ; parse_expr_bin_oper GreatestEqual ">="
     ; parse_expr_bin_oper GreaterThan ">"
     ]
 ;;

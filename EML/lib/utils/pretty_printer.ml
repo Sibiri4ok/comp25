@@ -11,7 +11,7 @@ let string_of_bin_op = function
   | Division -> "/"
   | And -> "&&"
   | Or -> "||"
-  | GretestEqual -> ">="
+  | GreatestEqual -> ">="
   | LowestEqual -> "<="
   | GreaterThan -> ">"
   | LowerThan -> "<"
@@ -168,5 +168,3 @@ let pp_structure ppf (lst : structure list) =
     ppf
     lst
 ;;
-
-let pp_program = pp_structure

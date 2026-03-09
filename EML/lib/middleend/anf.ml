@@ -37,6 +37,7 @@ and anf_expr =
 
 type arity = int
 
+(* Used by [@@deriving show] for types containing [arity]; not exported. *)
 let pp_arity ppf (n : arity) = Stdlib.Format.pp_print_int ppf n
 
 type anf_bind = ident * anf_expr [@@deriving show { with_path = false }]
