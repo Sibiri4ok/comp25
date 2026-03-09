@@ -1,9 +1,3 @@
-/*
- * Unified EML runtime for RISC-V and LLVM backends.
- * Build with -DEML_RISCV for RISC-V (call via asm, no main),
- *         -DEML_LLVM for LLVM (llvm_call_indirect + main -> eml_main).
- * Optional: -DENABLE_GC for GC; otherwise malloc-only.
- */
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -22,7 +16,6 @@ void print_int(int64_t tagged_n) {
   printf("%ld\n", (long)TO_ML_INTEGER(tagged_n));
 }
 
-/* Unified object header and GC tags (same for both backends) */
 #define TAG_TUPLE   0
 #define TAG_CLOSURE 1
 #define TAG_LAST    2
@@ -285,7 +278,6 @@ int64_t get_heap_final(void) { return tag_int_val(0); }
 
 #endif /* ENABLE_GC */
 
-/* Closure and call convention */
 typedef struct {
   void *code;
   int64_t arity;
@@ -409,13 +401,13 @@ tuple *create_tuple(int64_t argc, void **args) {
 
 void *field(tuple *t, long n) { return t->args[n >> 1]; }
 
-#if defined(EML_LLVM)
-
+#if defined(EML_LLVM) && !defined(EML_LLVM_STANDALONE)
+/* When linking with RTS that provides main (e.g. custom runner), call eml_main. */
 extern void eml_main(void);
 
 int main(void) {
   eml_main();
   return 0;
 }
+#endif /* EML_LLVM && !EML_LLVM_STANDALONE */
 
-#endif /* EML_LLVM */

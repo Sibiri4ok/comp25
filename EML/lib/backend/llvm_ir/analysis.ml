@@ -14,8 +14,7 @@ type function_layout =
   }
 
 type analysis_result =
-  { arity_map : (string, int, Base.String.comparator_witness) Base.Map.t
-  ; functions : function_layout list
+  { functions : function_layout list
   ; resolve : int -> string -> (string * int) option
   }
 
@@ -33,22 +32,7 @@ let rec params_of_anf = function
   | other -> [], other
 ;;
 
-let arity_map_of_program (program : anf_program) =
-  List.fold_left
-    (fun map -> function
-       | AnfValue (_, (fid, arity, _), and_binds) ->
-         let map = Base.Map.set map ~key:fid ~data:arity in
-         List.fold_left
-           (fun acc (id, arity, _) -> Base.Map.set acc ~key:id ~data:arity)
-           map
-           and_binds
-       | _ -> map)
-    (Base.Map.empty (module Base.String))
-    program
-;;
-
 let analyze (program : anf_program) =
-  let arity_map = arity_map_of_program program in
   let raw =
     List.filter_map
       (function
@@ -59,8 +43,10 @@ let analyze (program : anf_program) =
       program
   in
   let mangle_reserved name =
-    if is_reserved name then "eml_" ^ name
-    else if String.equal name "_start" then "eml_start"
+    if is_reserved name
+    then "eml_" ^ name
+    else if String.equal name "_start"
+    then "eml_start"
     else name
   in
   let functions, _ =
@@ -99,9 +85,6 @@ let analyze (program : anf_program) =
       in
       functions @ [ synthetic_main ])
   in
-  let arity_map =
-    if has_main then arity_map else Base.Map.set arity_map ~key:"main" ~data:0
-  in
   let resolver func_index var_name =
     let rec find i =
       if i < 0
@@ -115,5 +98,5 @@ let analyze (program : anf_program) =
     in
     find (func_index - 1)
   in
-  { arity_map; functions; resolve = resolver }
+  { functions; resolve = resolver }
 ;;

@@ -57,16 +57,9 @@ module Make (N : NAMING) = struct
   ;;
 
   let fail err = fun _ -> Error err
-
-  let map_find_opt (map : (string, 'a, _) Base.Map.t) key : 'a option =
-    Base.Map.fold map ~init:None ~f:(fun ~key:map_key ~data:map_value acc ->
-      match acc with
-      | Some _ -> acc
-      | None -> if String.equal map_key key then Some map_value else None)
-  ;;
-
-  let find_value_opt name state = Ok (map_find_opt state.value_env name, state)
-  let find_type_opt name state = Ok (map_find_opt state.type_env name, state)
+  let map_find_opt (map : (string, 'a, _) Base.Map.t) key = Base.Map.find map key
+  let find_value_opt name state = Ok (Base.Map.find state.value_env name, state)
+  let find_type_opt name state = Ok (Base.Map.find state.type_env name, state)
 
   let resolve_key state name =
     match state.resolve with
@@ -79,12 +72,12 @@ module Make (N : NAMING) = struct
 
   let resolved_find_value_opt name state =
     let resolved_key = resolve_key state name in
-    Ok (map_find_opt state.value_env resolved_key, state)
+    Ok (Base.Map.find state.value_env resolved_key, state)
   ;;
 
   let resolved_find_type_opt name state =
     let resolved_key = resolve_key state name in
-    Ok (map_find_opt state.type_env resolved_key, state)
+    Ok (Base.Map.find state.type_env resolved_key, state)
   ;;
 
   let set_value name value =

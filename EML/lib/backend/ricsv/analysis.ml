@@ -170,8 +170,10 @@ let analyze (program : anf_program) =
       program
   in
   let mangle_reserved name =
-    if is_reserved name then "eml_" ^ name
-    else if String.equal name "_start" then "eml_start"
+    if is_reserved name
+    then "eml_" ^ name
+    else if String.equal name "_start"
+    then "eml_start"
     else name
   in
   let functions, _ =

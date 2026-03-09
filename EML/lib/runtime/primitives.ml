@@ -40,10 +40,6 @@ let runtime_primitive_arities : (string * int) list =
   List.map (fun { name; args; _ } -> name, List.length args) predefined_runtime_funcs
 ;;
 
-(** Names that must not be used as user function symbols; user definitions are mangled to [eml_<name>].
-    [main] is not included: it is handled separately (e.g. LLVM emits user main as [eml_main]). *)
-let reserved_function_names : string list =
-  List.map (fun { name; _ } -> name) predefined_runtime_funcs
+let is_reserved (name : string) : bool =
+  List.exists (fun { name = n; _ } -> String.equal n name) predefined_runtime_funcs
 ;;
-
-let is_reserved (name : string) : bool = List.mem name reserved_function_names

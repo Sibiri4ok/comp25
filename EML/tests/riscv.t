@@ -2,40 +2,40 @@ Copyright 2025-2026, Victoria Ostrovskaya & Danil Usoltsev
 SPDX-License-Identifier: LGPL-3.0-or-later
 
 
-  $ make compile many_tests/typed/001fac.ml
+  $ make compile_riscv many_tests/typed/001fac.ml
   24
 
-  $ make compile many_tests/typed/002fac.ml
+  $ make compile_riscv many_tests/typed/002fac.ml
   24
 
-  $ make compile many_tests/typed/003fib.ml
+  $ make compile_riscv many_tests/typed/003fib.ml
   3
   3
 
-  $ make compile many_tests/typed/004manyargs.ml
+  $ make compile_riscv many_tests/typed/004manyargs.ml
   1111111111
   1
   10
   100
 
-  $ make compile many_tests/typed/005fix.ml
+  $ make compile_riscv many_tests/typed/005fix.ml
   720
 
-  $ make compile many_tests/typed/006partial.ml
+  $ make compile_riscv many_tests/typed/006partial.ml
   1122
 
-  $ make compile many_tests/typed/006partial2.ml
+  $ make compile_riscv many_tests/typed/006partial2.ml
   1
   2
   3
   7
 
-  $ make compile many_tests/typed/006partial3.ml
+  $ make compile_riscv many_tests/typed/006partial3.ml
   4
   8
   9
 
-  $ make compile many_tests/typed/007order.ml
+  $ make compile_riscv many_tests/typed/007order.ml
   1
   2
   4
@@ -44,34 +44,34 @@ SPDX-License-Identifier: LGPL-3.0-or-later
   -555555
   10000
 
-  $ make compile many_tests/typed/008ascription.ml
+  $ make compile_riscv many_tests/typed/008ascription.ml
   8
 
-  $ make compile many_tests/typed/009let_poly.ml
+  $ make compile_riscv many_tests/typed/009let_poly.ml
 
-  $ make compile many_tests/typed/010fac_anf.ml
+  $ make compile_riscv many_tests/typed/010fac_anf.ml
 
-  $ make compile many_tests/typed/010faccps_ll.ml
+  $ make compile_riscv many_tests/typed/010faccps_ll.ml
   24
 
-  $ make compile many_tests/typed/010fibcps_ll.ml
+  $ make compile_riscv many_tests/typed/010fibcps_ll.ml
   8
 
-  $ make compile many_tests/typed/011mapcps.ml
+  $ make compile_riscv many_tests/typed/011mapcps.ml
   2
   3
   4
 
-  $ make compile many_tests/typed/012faccps.ml
+  $ make compile_riscv many_tests/typed/012faccps.ml
   720
 
-  $ make compile many_tests/typed/012fibcps.ml
+  $ make compile_riscv many_tests/typed/012fibcps.ml
   8
 
-  $ make compile many_tests/typed/013foldfoldr.ml
+  $ make compile_riscv many_tests/typed/013foldfoldr.ml
   6
 
-  $ make compile many_tests/typed/015tuples.ml
+  $ make compile_riscv many_tests/typed/015tuples.ml
   1
   1
   1

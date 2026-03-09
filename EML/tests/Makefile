@@ -1,20 +1,23 @@
 SHELL := /bin/bash
 
-EML_ROOT ?= $(CURDIR)/..
-EML_BIN ?= $(if $(findstring _build,$(EML_ROOT)),$(EML_ROOT)/bin/EML.exe,$(EML_ROOT)/_build/default/bin/EML.exe)
-RUNTIME_A := $(if $(wildcard ../lib/runtime/rv64_runtime.a),../lib/runtime/rv64_runtime.a,../_build/default/lib/runtime/rv64_runtime.a)
+EML_ROOT   ?= $(CURDIR)/..
+EML_BIN    ?= $(if $(findstring _build,$(EML_ROOT)),$(EML_ROOT)/bin/EML.exe,$(EML_ROOT)/_build/default/bin/EML.exe)
+RUNTIME_A  := $(if $(wildcard ../lib/runtime/rv64_runtime.a),../lib/runtime/rv64_runtime.a,../_build/default/lib/runtime/rv64_runtime.a)
+RUNTIME_DIR := $(CURDIR)/../lib/runtime
 
-ARGS := $(filter-out compile infer compile_llvm,$(MAKECMDGOALS))
-INPUT := $(firstword $(ARGS))
+ARGS       := $(filter-out compile_riscv infer compile_llvm,$(MAKECMDGOALS))
+INPUT      := $(firstword $(ARGS))
 EXTRA_GOALS := $(ARGS)
-GC_FLAG := $(if $(filter 1 true yes on,$(GC)),-gc,)
+GC_FLAG    := $(if $(filter 1 true yes on,$(GC)),-gc,)
+CFLAGS_GC  := $(if $(filter 1 true yes on,$(GC)),-DENABLE_GC,)
 
-.PHONY: compile infer compile_llvm $(EXTRA_GOALS)
+.PHONY: compile_riscv infer compile_llvm $(EXTRA_GOALS)
 
-compile:
+# RISC-V: compile .ml -> .s -> .o, link, run under qemu. Usage: make compile_riscv [GC=1] <file.ml|file.s>
+compile_riscv:
 	@set -euo pipefail; \
 	FILE="$(INPUT)"; \
-	[[ -n "$$FILE" ]] || { echo "Usage: make compile [GC=1] <file.ml|file.s>" >&2; exit 1; }; \
+	[[ -n "$$FILE" ]] || { echo "Usage: make compile_riscv [GC=1] <file.ml|file.s>" >&2; exit 1; }; \
 	TMP_SRC="$$(mktemp -d)"; TMP_BIN="$$(mktemp -d)"; \
 	trap 'rm -rf "$$TMP_SRC" "$$TMP_BIN"' EXIT; \
 	if [[ "$$FILE" == *.s ]]; then \
@@ -25,12 +28,12 @@ compile:
 		ASM_FILE="$$TMP_SRC/prog.s"; \
 		"$(EML_BIN)" $(GC_FLAG) -fromfile "$$SRC" -o "$$ASM_FILE"; \
 	fi; \
-	OBJ_FILE="$$TMP_BIN/prog.o"; \
-	EXE_FILE="$$TMP_BIN/prog.exe"; \
+	OBJ_FILE="$$TMP_BIN/prog.o"; EXE_FILE="$$TMP_BIN/prog.exe"; \
 	riscv64-linux-gnu-as -march=rv64gc "$$ASM_FILE" -o "$$OBJ_FILE"; \
 	riscv64-linux-gnu-gcc "$$OBJ_FILE" "$(RUNTIME_A)" -o "$$EXE_FILE"; \
 	qemu-riscv64 -L /usr/riscv64-linux-gnu -cpu rv64 "$$EXE_FILE"
 
+# Infer types. Usage: make infer [GC=1] <file.ml>
 infer:
 	@set -euo pipefail; \
 	FILE="$(INPUT)"; \
@@ -40,16 +43,21 @@ infer:
 	SRC="$$(realpath "$$FILE")"; \
 	"$(EML_BIN)" $(GC_FLAG) -infer -fromfile "$$SRC"
 
-# LLVM: compile source to .ll (no link/run; needs llvm_call_indirect for full run)
+# LLVM: compile .ml -> .ll, link with runtime, run on host (x86-64). Usage: make compile_llvm [GC=1] <file.ml>
 compile_llvm:
 	@set -euo pipefail; \
 	FILE="$(INPUT)"; \
-	[[ -n "$$FILE" ]] || { echo "Usage: make compile_llvm <file.ml>" >&2; exit 1; }; \
+	[[ -n "$$FILE" ]] || { echo "Usage: make compile_llvm [GC=1] <file.ml>" >&2; exit 1; }; \
 	[[ -f "$$FILE" ]] || { echo "Source file not found: $$FILE" >&2; exit 1; }; \
 	SRC="$$(realpath "$$FILE")"; \
+	BASENAME="$$(basename "$$FILE" .ml)"; \
 	TMP="$$(mktemp -d)"; trap 'rm -rf "$$TMP"' EXIT; \
-	"$(EML_BIN)" -backend llvm -fromfile "$$SRC" -o "$$TMP/prog.ll"; \
-	cat "$$TMP/prog.ll"
+	"$(EML_BIN)" $(GC_FLAG) -backend llvm -fromfile "$$SRC" -o "$$TMP/prog.ll"; \
+	clang -O0 -Wno-override-module $(CFLAGS_GC) -DEML_LLVM -DEML_LLVM_STANDALONE -c "$(RUNTIME_DIR)/runtime.c" -o "$$TMP/runtime.o"; \
+	clang -c "$(RUNTIME_DIR)/llvm_call.S" -o "$$TMP/llvm_call.o"; \
+	clang -O0 -Wno-override-module "$$TMP/prog.ll" "$$TMP/runtime.o" "$$TMP/llvm_call.o" -o "$$TMP/prog.exe"; \
+	[ -n "$(CFLAGS_GC)" ] && [ "$$BASENAME" = "010fibcps_ll" ] && export EML_HEAP_SIZE=1600; \
+	"$$TMP/prog.exe"
 
 $(EXTRA_GOALS):
 	@:

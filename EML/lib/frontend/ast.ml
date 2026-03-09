@@ -89,8 +89,6 @@ type structure =
 type program = structure list [@@deriving show { with_path = false }]
 
 let bin_op_list = [ "*"; "/"; "+"; "-"; "^"; ">="; "<="; "<>"; "="; ">"; "<"; "&&"; "||" ]
-let unary_op_list = [ "~-" ]
-let is_unary_minus op = op = "~-"
 
 let rec pp_ty fmt = function
   | TyPrim x -> fprintf fmt "%s" x

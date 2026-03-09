@@ -12,8 +12,7 @@ type function_layout =
   }
 
 type analysis_result =
-  { arity_map : (string, int, Base.String.comparator_witness) Base.Map.t
-  ; functions : function_layout list
+  { functions : function_layout list
   ; resolve : int -> string -> (string * int) option
   }
 

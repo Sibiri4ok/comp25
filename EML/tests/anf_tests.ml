@@ -5,6 +5,8 @@
 open EML_lib.Frontend.Parser
 open EML_lib.Middleend.Anf
 open EML_lib.Middleend.Anf_pp
+open EML_lib.Middleend.Runner
+open EML_lib.Middleend.Inferencer
 
 let parse_and_anf input =
   match parse input with
@@ -22,6 +24,30 @@ let parse_and_anf_pp input =
      | Ok anf_ast -> Printf.printf "%s\n" (anf_to_string anf_ast)
      | Error e -> Printf.printf "ANF error: %s\n" e)
   | Error e -> Printf.printf "Parsing error: %s\n" e
+;;
+
+(** Round-trip: source -> ANF -> print -> parse -> typecheck.
+    Verifies that types do not diverge after ANF (requirement: "проверять, что типы не разъехались"). *)
+let anf_roundtrip_typecheck ~env program_str : (unit, string) Result.t =
+  let ( >>= ) = Result.bind in
+  parse program_str
+  |> Result.map_error (fun s -> "Parse error: " ^ s)
+  >>= fun ast ->
+  run ast env
+  |> Result.map_error (fun e ->
+    Format.asprintf "Middleend: %a" EML_lib.Middleend.Runner.pp_error e)
+  >>= fun (anf_ast, _env_after) ->
+  let printed = anf_to_string anf_ast in
+  parse printed
+  |> Result.map_error (fun s -> "ANF round-trip parse error: " ^ s)
+  >>= fun ast2 ->
+  ResultMonad.run (infer_structure env ast2)
+  |> Result.map_error (fun e ->
+    Format.asprintf
+      "ANF round-trip typecheck failed: %a"
+      EML_lib.Middleend.Inferencer.pp_error
+      e)
+  |> Result.map (fun _ -> ())
 ;;
 
 let%expect_test "001.ml" =
@@ -240,4 +266,38 @@ let%expect_test "anf_match_list_lowering_cons_nil_order" =
            )))),
     []))
   ]|}]
+;;
+
+let%expect_test "anf_roundtrip_types_fac" =
+  let env = TypeEnv.initial_env in
+  (match
+     anf_roundtrip_typecheck
+       ~env
+       "let rec fac n = if n <= 1 then 1 else n * fac (n - 1)\nlet main = fac 4"
+   with
+   | Ok () -> Printf.printf "OK: types preserved after ANF round-trip\n"
+   | Error e -> Printf.printf "FAIL: %s\n" e);
+  [%expect {| OK: types preserved after ANF round-trip |}]
+;;
+
+let%expect_test "anf_roundtrip_types_fib" =
+  let env = TypeEnv.initial_env in
+  (match
+     anf_roundtrip_typecheck
+       ~env
+       "let rec fib n = if n < 2 then n else fib (n - 1) + fib (n - 2)\nlet main = fib 5"
+   with
+   | Ok () -> Printf.printf "OK: types preserved after ANF round-trip\n"
+   | Error e -> Printf.printf "FAIL: %s\n" e);
+  [%expect {| OK: types preserved after ANF round-trip |}]
+;;
+
+let%expect_test "anf_roundtrip_types_partial" =
+  let env = TypeEnv.initial_env in
+  (match
+     anf_roundtrip_typecheck ~env "let add x y = x + y\nlet main = let f = add 1 in f 2"
+   with
+   | Ok () -> Printf.printf "OK: types preserved after ANF round-trip\n"
+   | Error e -> Printf.printf "FAIL: %s\n" e);
+  [%expect {| OK: types preserved after ANF round-trip |}]
 ;;

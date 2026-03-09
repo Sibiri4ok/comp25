@@ -1,7 +1,7 @@
 Copyright 2025-2026, Victoria Ostrovskaya & Danil Usoltsev
 SPDX-License-Identifier: LGPL-3.0-or-later
 
-  $ make compile GC=1 gc_tests/tuple_tests/01adder.ml
+  $ make compile_riscv GC=1 gc_tests/tuple_tests/01adder.ml
   === GC Status ===
   Current  allocated: 13
   Total    allocated: 13
@@ -22,7 +22,7 @@ SPDX-License-Identifier: LGPL-3.0-or-later
   GC     allocations: 4
   =================
 
-  $ make compile GC=1 gc_tests/tuple_tests/02nested.ml
+  $ make compile_riscv GC=1 gc_tests/tuple_tests/02nested.ml
   === GC Status ===
   Current  allocated: 23
   Total    allocated: 23
@@ -43,7 +43,7 @@ SPDX-License-Identifier: LGPL-3.0-or-later
   GC     allocations: 5
   =================
 
-  $ make compile GC=1 gc_tests/tuple_tests/03args.ml
+  $ make compile_riscv GC=1 gc_tests/tuple_tests/03args.ml
   === GC Status ===
   Current  allocated: 28
   Total    allocated: 28

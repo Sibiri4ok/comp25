@@ -2,7 +2,7 @@ Copyright 2025-2026, Victoria Ostrovskaya & Danil Usoltsev
 SPDX-License-Identifier: LGPL-3.0-or-later
 
 
-  $ make compile GC=1 gc_tests/closure/01_add5_staged_partial_gc.ml
+  $ make compile_riscv GC=1 gc_tests/closure/01_add5_staged_partial_gc.ml
   === GC Status ===
   Current  allocated: 18
   Total    allocated: 18
@@ -41,7 +41,7 @@ SPDX-License-Identifier: LGPL-3.0-or-later
   =================
   15
 
-  $ make compile GC=1 gc_tests/closure/02_affine_live_dead_gc.ml
+  $ make compile_riscv GC=1 gc_tests/closure/02_affine_live_dead_gc.ml
   === GC Status ===
   Current  allocated: 28
   Total    allocated: 28
@@ -80,7 +80,7 @@ SPDX-License-Identifier: LGPL-3.0-or-later
   =================
   17
 
-  $ make compile GC=1 gc_tests/closure/03_add10_staged_partial_gc.ml
+  $ make compile_riscv GC=1 gc_tests/closure/03_add10_staged_partial_gc.ml
   === GC Status ===
   Current  allocated: 28
   Total    allocated: 28
