@@ -1,6 +1,6 @@
 (rule
  (targets rv64_runtime.a)
- (deps riscv_runtime.c)
+ (deps runtime.c)
  (action
   (progn
    (run
@@ -8,8 +8,19 @@
     -march=rv64gc
     -mabi=lp64d
     -O2
+    -DEML_RISCV
+    -DENABLE_GC
     -c
-    %{dep:riscv_runtime.c}
+    %{dep:runtime.c}
     -o
     rv64_runtime.o)
    (run riscv64-linux-gnu-ar rcs %{targets} rv64_runtime.o))))
+
+;; Optional: build LLVM runtime object for linking with .ll output.
+;; Usage: dune build lib/runtime/llvm_runtime.o (with C compiler on host)
+
+(rule
+ (targets llvm_runtime.o)
+ (deps runtime.c)
+ (action
+  (run gcc -O2 -DEML_LLVM -DENABLE_GC -c %{dep:runtime.c} -o %{targets})))
