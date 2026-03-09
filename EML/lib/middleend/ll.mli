@@ -7,4 +7,7 @@ type error =
   | SValueEmptyBinding
 
 val pp_error : Format.formatter -> error -> unit
-val lambda_lifting_result : Frontend.Ast.program -> (Frontend.Ast.structure list, error) Result.t
+
+val lambda_lifting_result
+  :  Frontend.Ast.program
+  -> (Frontend.Ast.structure list, error) Result.t

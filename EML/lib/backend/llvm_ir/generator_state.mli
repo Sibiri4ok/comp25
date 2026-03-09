@@ -42,8 +42,14 @@ module Make (N : NAMING) : sig
   val set_value : string -> llvalue -> unit t
   val set_type : string -> lltype -> unit t
   val remove_value : string -> unit t
-  val get_gc_allocas : (string, llvalue, Base.String.comparator_witness) Base.Map.t option t
-  val set_gc_allocas : (string, llvalue, Base.String.comparator_witness) Base.Map.t option -> unit t
+
+  val get_gc_allocas
+    : (string, llvalue, Base.String.comparator_witness) Base.Map.t option t
+
+  val set_gc_allocas
+    :  (string, llvalue, Base.String.comparator_witness) Base.Map.t option
+    -> unit t
+
   val get_gc_entry_block : llbasicblock option t
   val set_gc_entry_block : llbasicblock option -> unit t
   val fresh_blocks : (string * string * string) t

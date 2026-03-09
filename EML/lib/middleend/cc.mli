@@ -5,4 +5,7 @@
 type error = LambdaWithoutParameters
 
 val pp_error : Format.formatter -> error -> unit
-val closure_conversion_result : Frontend.Ast.program -> (Frontend.Ast.program, error) Result.t
+
+val closure_conversion_result
+  :  Frontend.Ast.program
+  -> (Frontend.Ast.program, error) Result.t

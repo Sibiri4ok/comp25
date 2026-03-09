@@ -26,7 +26,8 @@ let%expect_test "nonrecursive_multiple_lets" =
     bar x 2 + baz
   ;;
   |};
-  [%expect {|
+  [%expect
+    {|
     let lifted_0 = fun x y -> (x + y);;
     let foo = fun x -> let bar = lifted_0
     and baz = 2 in (bar x 2 + baz);; |}]
@@ -41,7 +42,8 @@ let%expect_test "nonrecursive_multiple_functions" =
     bar 2 + baz x 5
   ;;
   |};
-  [%expect {|
+  [%expect
+    {|
     let lifted_0 = fun y -> y;;
     let lifted_1 = fun x c -> (x + c);;
     let foo = fun x -> let bar = lifted_0
@@ -60,7 +62,8 @@ let%expect_test "mutual_recursion_in_let_rec_and" =
     is_small limit 13
   ;;
   |};
-  [%expect {|
+  [%expect
+    {|
     let lifted_2 = fun limit n -> if (n <= limit) then true else lifted_1 limit ((n - 1));;
     let lifted_3 = fun limit n -> if (n > limit) then false else lifted_0 limit ((n - 1));;
     let rec lifted_0 = lifted_2
@@ -77,7 +80,8 @@ let%expect_test "recursive_local_bindings_use_renamed_functions" =
     bar x 5 + baz x 6
   ;;
   |};
-  [%expect {|
+  [%expect
+    {|
     let lifted_2 = fun x y -> (x + y);;
     let lifted_3 = fun x c -> (c + lifted_0 x 5);;
     let rec lifted_0 = lifted_2
@@ -93,7 +97,8 @@ let%expect_test "sequence_with_local_lambda" =
     (let h x y = x + y in h x 10)
   ;;
   |};
-  [%expect {|
+  [%expect
+    {|
     let lifted_0 = fun x y -> (x + y);;
     let g = fun x -> let () = print_int x in let h = lifted_0 in h x 10;; |}]
 ;;
@@ -106,7 +111,8 @@ let%expect_test "tuple_pattern_lambda_lifting" =
     f a b (1, 2)
   ;;
   |};
-  [%expect {|
+  [%expect
+    {|
     let lifted_0 = fun a b (x, y) -> (((a + b) + x) + y);;
     let pair_sum = fun a b -> let f = lifted_0 in f a b ((1, 2));; |}]
 ;;
@@ -120,7 +126,8 @@ let%expect_test "match_with_option_and_inline_lambdas" =
     | None -> fun z -> z + 1
   ;;
   |};
-  [%expect {|
+  [%expect
+    {|
     let lifted_0 = fun y z -> (y - z);;
     let lifted_1 = fun z -> (z + 1);;
     let f = fun x -> match x with | Some (y) -> lifted_0 y | None -> lifted_1;; |}]

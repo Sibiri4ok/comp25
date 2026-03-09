@@ -66,7 +66,8 @@ and pp_expr ppf = function
   | ExpBranch (c, t, None) -> Format.fprintf ppf "if %a then %a" pp_expr c pp_expr t
   | ExpBranch (c, t, Some e) ->
     Format.fprintf ppf "if %a then %a else %a" pp_expr c pp_expr t pp_expr e
-  | ExpBinOper (op, l, r) -> Format.fprintf ppf "(%a %a %a)" pp_expr l pp_bin_op op pp_expr r
+  | ExpBinOper (op, l, r) ->
+    Format.fprintf ppf "(%a %a %a)" pp_expr l pp_bin_op op pp_expr r
   | ExpUnarOper (op, e) -> Format.fprintf ppf "(%a %a)" pp_unary_op op pp_expr e
   | ExpTuple (e1, e2, rest) ->
     Format.fprintf
@@ -90,7 +91,11 @@ and pp_expr ppf = function
       body
   | ExpTypeAnnotation (e, t) -> Format.fprintf ppf "(%a : %a)" pp_expr e pp_ty t
   | ExpLet (is_rec, bind, more, body) ->
-    let kw = match is_rec with Rec -> "let rec" | NonRec -> "let" in
+    let kw =
+      match is_rec with
+      | Rec -> "let rec"
+      | NonRec -> "let"
+    in
     Format.fprintf ppf "%s %a in %a" kw pp_binds (bind, more) pp_expr body
   | ExpApply _ as e ->
     let f, args = flatten_apply e in
@@ -125,7 +130,8 @@ and pp_expr ppf = function
   | ExpConstruct (id, Some e) -> Format.fprintf ppf "%s (%a)" id pp_expr e
 
 and pp_atomic_expr ppf = function
-  | (ExpIdent _ | ExpConst _ | ExpOption None | ExpConstruct (_, None)) as e -> pp_expr ppf e
+  | (ExpIdent _ | ExpConst _ | ExpOption None | ExpConstruct (_, None)) as e ->
+    pp_expr ppf e
   | e -> Format.fprintf ppf "(%a)" pp_expr e
 
 and flatten_apply e =
@@ -137,7 +143,6 @@ and flatten_apply e =
   go e []
 
 and pp_case ppf (p, e) = Format.fprintf ppf "| %a -> %a" pp_pattern p pp_expr e
-
 and pp_bind ppf (p, e) = Format.fprintf ppf "%a = %a" pp_pattern p pp_expr e
 
 and pp_binds ppf (first, more) =
@@ -148,7 +153,11 @@ and pp_binds ppf (first, more) =
 let pp_structure_item ppf = function
   | SEval e -> Format.fprintf ppf "%a;;" pp_expr e
   | SValue (is_rec, bind, more) ->
-    let kw = match is_rec with Rec -> "let rec" | NonRec -> "let" in
+    let kw =
+      match is_rec with
+      | Rec -> "let rec"
+      | NonRec -> "let"
+    in
     Format.fprintf ppf "%s %a;;" kw pp_binds (bind, more)
 ;;
 

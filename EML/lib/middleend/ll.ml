@@ -207,8 +207,7 @@ module Make (N : NAMING) = struct
       let* res_rhs = lift_expr (inner ctx) exp in
       let* extra_structures, rest_binds = lift_binds (inner ctx) more in
       let all_defs =
-        names_in_pattern pat
-        @ List.concat_map (fun (p, _) -> names_in_pattern p) more
+        names_in_pattern pat @ List.concat_map (fun (p, _) -> names_in_pattern p) more
       in
       let body_ctx =
         { (inner ctx) with renames = without_bindings ctx.renames all_defs }

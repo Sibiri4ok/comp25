@@ -65,7 +65,8 @@ let rec max_stack_args_cexpr = function
   | ComplexBinOper (_, left, right) ->
     max (max_stack_args_imm left) (max_stack_args_imm right)
   | ComplexUnarOper (_, imm) -> max_stack_args_imm imm
-  | ComplexTuple (first, second, rest) -> max_by max_stack_args_imm (first :: second :: rest)
+  | ComplexTuple (first, second, rest) ->
+    max_by max_stack_args_imm (first :: second :: rest)
   | ComplexField (imm, _) -> max_stack_args_imm imm
   | ComplexList imm_list -> max_by max_stack_args_imm imm_list
   | ComplexApp (_first, second, rest) ->
@@ -105,8 +106,7 @@ let rec max_create_tuple_array_cexpr = function
     let bytes_per_cons_cell = 2 * word_size in
     let bytes_from_elements = sum_by max_create_tuple_array_imm imm_list in
     (bytes_per_cons_cell * List.length imm_list) + bytes_from_elements
-  | ComplexApp (_f, second, rest) ->
-    max_by max_create_tuple_array_imm (second :: rest)
+  | ComplexApp (_f, second, rest) -> max_by max_create_tuple_array_imm (second :: rest)
   | ComplexOption None -> 0
   | ComplexOption (Some imm) -> max_create_tuple_array_imm imm
   | ComplexLambda (_, body) -> max_create_tuple_array_anf body
@@ -186,10 +186,7 @@ let analyze (program : anf_program) =
            Base.Map.find generated_name_counts func_name |> Option.value ~default:0
          in
          let updated_generated_name_counts =
-           Base.Map.set
-             generated_name_counts
-             ~key:func_name
-             ~data:(duplicate_index + 1)
+           Base.Map.set generated_name_counts ~key:func_name ~data:(duplicate_index + 1)
          in
          let asm_name =
            if duplicate_index = 0

@@ -12,7 +12,9 @@ open Generator_state
 open Auxillary
 
 let alloc_frame_slot =
-  let* () = modify (fun state -> { state with frame_offset = state.frame_offset + word_size }) in
+  let* () =
+    modify (fun state -> { state with frame_offset = state.frame_offset + word_size })
+  in
   let* state = get in
   return (fp, -state.frame_offset)
 ;;
@@ -72,7 +74,8 @@ let evacuate_reg destination_register =
   in
   let rewrite_location_in_environment environment from_register to_location =
     Base.Map.map environment ~f:(function
-      | Loc_reg mapped_register when equal_reg mapped_register from_register -> to_location
+      | Loc_reg mapped_register when equal_reg mapped_register from_register ->
+        to_location
       | location -> location)
   in
   let* env = get_env in
@@ -162,7 +165,11 @@ let spill_dangerous_args state arguments =
       else return spilled_locations_by_index)
 ;;
 
-let load_immediates_into_registers spilled_locations argument_registers immediate_arguments =
+let load_immediates_into_registers
+      spilled_locations
+      argument_registers
+      immediate_arguments
+  =
   let immediate_count_to_load =
     min (List.length immediate_arguments) (List.length argument_registers)
   in
@@ -170,11 +177,11 @@ let load_immediates_into_registers spilled_locations argument_registers immediat
     (Base.List.take immediate_arguments immediate_count_to_load)
     ~init:(return ())
     ~f:(fun argument_index acc immediate_argument ->
-    let* () = acc in
-    let destination_register = List.nth argument_registers argument_index in
-    match Base.Map.find spilled_locations argument_index with
-    | Some spilled_location -> load_into_reg destination_register spilled_location
-    | None -> gen_imm destination_register immediate_argument)
+      let* () = acc in
+      let destination_register = List.nth argument_registers argument_index in
+      match Base.Map.find spilled_locations argument_index with
+      | Some spilled_location -> load_into_reg destination_register spilled_location
+      | None -> gen_imm destination_register immediate_argument)
 ;;
 
 let emit_arguments_to_stack spilled_arguments arguments =
@@ -209,18 +216,13 @@ let gen_call_with_regs
       function_symbol
   =
   let* () =
-    load_immediates_into_registers
-      spilled_arguments
-      argument_registers
-      call_arguments
+    load_immediates_into_registers spilled_arguments argument_registers call_arguments
   in
   let stack_arguments = Base.List.drop call_arguments (List.length argument_registers) in
   let* reserved_stack_bytes = push_stack_args stack_arguments in
   let* () = append (call function_symbol) in
   let* () = copy_result_to destination_register in
-  if reserved_stack_bytes > 0
-  then append (addi sp sp reserved_stack_bytes)
-  else return ()
+  if reserved_stack_bytes > 0 then append (addi sp sp reserved_stack_bytes) else return ()
 ;;
 
 (*  let foo = ... in
@@ -276,7 +278,12 @@ let rec gen_invocation destination_register function_name call_arguments =
   | Nullary resolved_function_name ->
     gen_nullary destination_register resolved_function_name
   | CurryChain { function_name; arity; initial_arguments; remaining_arguments } ->
-    gen_curried_call destination_register function_name arity initial_arguments remaining_arguments
+    gen_curried_call
+      destination_register
+      function_name
+      arity
+      initial_arguments
+      remaining_arguments
   | Direct { function_name; arguments } ->
     gen_direct_call destination_register function_name arguments spilled_arguments
   | ViaApplyNargs { function_name; argument_count; arguments } ->
@@ -299,18 +306,12 @@ and gen_curried_call
     gen_cexpr
       destination_register
       (ComplexApp
-         ( ImmediateVar function_name
-         , List.hd initial_arguments
-         , List.tl initial_arguments ))
+         (ImmediateVar function_name, List.hd initial_arguments, List.tl initial_arguments))
   in
   let* partial_function_location = store_reg_into_frame destination_register in
   let* () =
-    modify_env
-      (fun environment ->
-        Base.Map.set
-          environment
-          ~key:part_name
-          ~data:partial_function_location)
+    modify_env (fun environment ->
+      Base.Map.set environment ~key:part_name ~data:partial_function_location)
   in
   (* Apply each rest_arg one at a time (eml_applyN expects one application per call) *)
   let rec apply_remaining_arguments = function
@@ -319,15 +320,12 @@ and gen_curried_call
       gen_cexpr destination_register (ComplexApp (ImmediateVar part_name, argument, []))
     | argument :: remaining_arguments_tail ->
       let* () =
-        gen_cexpr
-          destination_register
-          (ComplexApp (ImmediateVar part_name, argument, []))
+        gen_cexpr destination_register (ComplexApp (ImmediateVar part_name, argument, []))
       in
       let* updated_partial_location = store_reg_into_frame destination_register in
       let* () =
-        modify_env
-          (fun environment ->
-            Base.Map.set environment ~key:part_name ~data:updated_partial_location)
+        modify_env (fun environment ->
+          Base.Map.set environment ~key:part_name ~data:updated_partial_location)
       in
       apply_remaining_arguments remaining_arguments_tail
   in

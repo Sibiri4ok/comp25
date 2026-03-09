@@ -21,10 +21,7 @@ let rec extract_tuple_pattern_idents acc = function
   | PatTuple (p1, p2, rest) ->
     let acc' = extract_tuple_pattern_idents acc p1 in
     let acc'' = extract_tuple_pattern_idents acc' p2 in
-    List.fold_left
-      rest
-      ~f:extract_tuple_pattern_idents
-      ~init:acc''
+    List.fold_left rest ~f:extract_tuple_pattern_idents ~init:acc''
   | PatAny -> "_" :: acc
   | _ -> acc
 ;;

@@ -54,7 +54,6 @@ let main = fac 4 |};
 |}]
 ;;
 
-
 let%expect_test "factorial" =
   parse_test "let rec factorial n = if n < 2 then 1 else n * factorial(n - 1);;";
   [%expect

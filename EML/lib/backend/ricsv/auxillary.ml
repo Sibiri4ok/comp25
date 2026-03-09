@@ -65,10 +65,13 @@ let indices_of_args_to_spill generation_state immediate_arguments =
     | ImmediateConst _ -> false
     | ImmediateVar function_name -> Base.Map.mem generation_state.arity_map function_name
   in
-  Base.List.foldi immediate_arguments ~init:[] ~f:(fun argument_index spilled_indices immediate_argument ->
-    if argument_overwrites_result_register immediate_argument
-    then argument_index :: spilled_indices
-    else spilled_indices)
+  Base.List.foldi
+    immediate_arguments
+    ~init:[]
+    ~f:(fun argument_index spilled_indices immediate_argument ->
+      if argument_overwrites_result_register immediate_argument
+      then argument_index :: spilled_indices
+      else spilled_indices)
   |> List.rev
 ;;
 
@@ -90,12 +93,7 @@ type call_style =
       ; arguments : immediate list
       }
 
-let classify_call
-      ~argument_count
-      ~callee_arity_opt
-      ~function_name
-      ~arguments
-  : call_style
+let classify_call ~argument_count ~callee_arity_opt ~function_name ~arguments : call_style
   =
   match callee_arity_opt with
   | Some 0 when argument_count = 1 -> Nullary function_name

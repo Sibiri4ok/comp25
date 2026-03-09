@@ -687,7 +687,7 @@ let gen_function
           in
           set_value_name name param_value;
           if enable_gc
-          then
+          then (
             let* gc_allocas = get_gc_allocas in
             let* allocas_map =
               match gc_allocas with
@@ -696,7 +696,7 @@ let gen_function
             in
             let* alloca_ptr = with_optional_value (alloca builder ptr_t name) in
             store builder param_value alloca_ptr;
-            set_gc_allocas (Some (Base.Map.set allocas_map ~key:name ~data:alloca_ptr))
+            set_gc_allocas (Some (Base.Map.set allocas_map ~key:name ~data:alloca_ptr)))
           else set_value name param_value
         | ImmediateConst _ -> return ())
     in

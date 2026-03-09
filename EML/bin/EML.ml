@@ -139,22 +139,18 @@ let parse_args () : (opts, unit) Result.t =
   in
   let rec loop current_opts = function
     | [] -> Ok current_opts
-    | "-gc" :: rest ->
-      loop { current_opts with enable_gc = true } rest
-    | "-infer" :: rest ->
-      loop { current_opts with infer_only = true } rest
+    | "-gc" :: rest -> loop { current_opts with enable_gc = true } rest
+    | "-infer" :: rest -> loop { current_opts with infer_only = true } rest
     | "-fromfile" :: path :: rest ->
       loop { current_opts with input_file = Some path } rest
-    | "-o" :: path :: rest ->
-      loop { current_opts with output_file = Some path } rest
+    | "-o" :: path :: rest -> loop { current_opts with output_file = Some path } rest
     | "-backend" :: backend_name :: rest ->
       (match parse_backend backend_name with
        | Ok backend -> loop { current_opts with backend } rest
        | Error () -> Error ())
     | argument :: _ when String.length argument > 0 && Char.equal argument.[0] '-' ->
       Error ()
-    | _positional_argument :: _ ->
-      Error ()
+    | _positional_argument :: _ -> Error ()
   in
   let argv = Array.to_list Sys.argv in
   match argv with

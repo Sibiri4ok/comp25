@@ -37,7 +37,8 @@ let%expect_test "top_level_nonrec_and_group" =
     id 3 + addk 4
   ;;
   |};
-  [%expect {|
+  [%expect
+    {|
     let f = fun x -> let id = fun y -> y
     and addk = fun x z -> (x + z) in (id 3 + addk x 4);; |}]
 ;;
@@ -51,7 +52,8 @@ let%expect_test "recursive_and_with_external_capture" =
     go 20
   ;;
   |};
-  [%expect {|
+  [%expect
+    {|
     let solve = fun bound -> let rec go = fun bound n -> if (n <= bound) then true else stop bound ((n - 1))
     and stop = fun bound n -> if (n > bound) then false else go bound ((n - 1)) in go bound 20;; |}]
 ;;
@@ -65,7 +67,8 @@ let%expect_test "recursive_local_function_value_capture" =
     plus 1 + call 2
   ;;
   |};
-  [%expect {|
+  [%expect
+    {|
     let run = fun x -> let rec plus = fun x y -> (x + y)
     and call = fun x c -> (c + plus x 7) in (plus x 1 + call x 2);; |}]
 ;;
@@ -84,7 +87,8 @@ let%expect_test "nested_levels_of_captures" =
     middle 3
   ;;
   |};
-  [%expect {| let outer = fun x -> let middle = fun x y -> let inner = fun x y z -> let deepest = fun x y z w -> (((x + y) + z) + w) in deepest x y z 1 in inner x y 2 in middle x 3;; |}]
+  [%expect
+    {| let outer = fun x -> let middle = fun x y -> let inner = fun x y z -> let deepest = fun x y z w -> (((x + y) + z) + w) in deepest x y z 1 in inner x y 2 in middle x 3;; |}]
 ;;
 
 let%expect_test "if_with_lambda_in_both_branches" =
@@ -93,7 +97,8 @@ let%expect_test "if_with_lambda_in_both_branches" =
   let choose flag base alt =
     if flag then (fun v -> base + v) else (fun v -> alt + v)
   |};
-  [%expect {| let choose = fun flag base alt -> if flag then (fun base v -> (base + v)) base else (fun alt v -> (alt + v)) alt;; |}]
+  [%expect
+    {| let choose = fun flag base alt -> if flag then (fun base v -> (base + v)) base else (fun alt v -> (alt + v)) alt;; |}]
 ;;
 
 let%expect_test "match_with_option_lambda_capture" =
@@ -105,7 +110,8 @@ let%expect_test "match_with_option_lambda_capture" =
     | None -> fun z -> z
   ;;
   |};
-  [%expect {| let mapper = fun x -> match x with | Some (y) -> (fun y z -> (y + z)) y | None -> fun z -> z;; |}]
+  [%expect
+    {| let mapper = fun x -> match x with | Some (y) -> (fun y z -> (y + z)) y | None -> fun z -> z;; |}]
 ;;
 
 let%expect_test "sequence_and_tuple_pattern_capture" =
@@ -117,7 +123,8 @@ let%expect_test "sequence_and_tuple_pattern_capture" =
     use_pair (3, 4)
   ;;
   |};
-  [%expect {| let consume = fun a b -> let () = print_int a in let use_pair = fun a b (x, y) -> (((a + b) + x) + y) in use_pair a b ((3, 4));; |}]
+  [%expect
+    {| let consume = fun a b -> let () = print_int a in let use_pair = fun a b (x, y) -> (((a + b) + x) + y) in use_pair a b ((3, 4));; |}]
 ;;
 
 let%expect_test "list_and_option_expressions" =
@@ -128,7 +135,8 @@ let%expect_test "list_and_option_expressions" =
     [f 1; f 2]
   ;;
   |};
-  [%expect {| let build = fun seed -> let f = fun seed x -> Some ((seed + x)) in f seed 1::f seed 2::[];; |}]
+  [%expect
+    {| let build = fun seed -> let f = fun seed x -> Some ((seed + x)) in f seed 1::f seed 2::[];; |}]
 ;;
 
 let%expect_test "type_annotation_inside_capture" =
@@ -139,5 +147,6 @@ let%expect_test "type_annotation_inside_capture" =
     g 5
   ;;
   |};
-  [%expect {| let annotated = fun base -> let g = fun base x -> ((base + x) : int) in g base 5;; |}]
+  [%expect
+    {| let annotated = fun base -> let g = fun base x -> ((base + x) : int) in g base 5;; |}]
 ;;

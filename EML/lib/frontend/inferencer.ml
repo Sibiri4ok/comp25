@@ -95,26 +95,22 @@ end = struct
   end
 
   let fresh : int t =
-    fun st ->
-    { st with counter = st.counter + 1 }, Result.return st.counter
+    fun st -> { st with counter = st.counter + 1 }, Result.return st.counter
   ;;
 
   let current_level : int t = fun st -> st, Result.return st.current_level
 
   let enter_level : unit t =
-    fun st ->
-    { st with current_level = st.current_level + 1 }, Result.return ()
+    fun st -> { st with current_level = st.current_level + 1 }, Result.return ()
   ;;
 
   let leave_level : unit t =
-    fun st ->
-    { st with current_level = max 0 (st.current_level - 1) }, Result.return ()
+    fun st -> { st with current_level = max 0 (st.current_level - 1) }, Result.return ()
   ;;
 
   let set_var_level var lvl : unit t =
     fun st ->
-    ( { st with var_levels = Map.set st.var_levels ~key:var ~data:lvl }
-    , Result.return () )
+    { st with var_levels = Map.set st.var_levels ~key:var ~data:lvl }, Result.return ()
   ;;
 
   let get_var_level var : int option t =
@@ -122,12 +118,7 @@ end = struct
   ;;
 
   let run monad =
-    snd
-      (monad
-         { counter = 0
-         ; current_level = 0
-         ; var_levels = Map.empty (module String)
-         })
+    snd (monad { counter = 0; current_level = 0; var_levels = Map.empty (module String) })
   ;;
 end
 
@@ -175,7 +166,7 @@ end = struct
   let mapping key value =
     if Type.occurs_in key value
     then fail (OccursCheck (key, value))
-    else (
+    else
       let* key_lvl = get_var_level key in
       let vars = Type.free_vars value |> VarSet.elements in
       let* () =
@@ -189,7 +180,7 @@ end = struct
             | Some v_lvl when v_lvl > key_lvl -> set_var_level v key_lvl
             | _ -> return ())
       in
-      return (key, value))
+      return (key, value)
   ;;
 
   let singleton key value =
@@ -446,7 +437,7 @@ let rec infer_pattern env = function
      | "[]", None ->
        let* fresh = fresh_var in
        return (Substitution.empty, TyList fresh, env)
-     | "::", Some ((PatTuple (_, _, []) as pair_pat)) ->
+     | "::", Some (PatTuple (_, _, []) as pair_pat) ->
        let* sub_pair, ty_pair, env' = infer_pattern env pair_pat in
        let* fresh_hd = fresh_var in
        let* fresh_tl = fresh_var in

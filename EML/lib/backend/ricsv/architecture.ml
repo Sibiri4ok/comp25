@@ -77,7 +77,7 @@ module Riscv_backend = struct
     | Ret -> fprintf ppf "ret"
   ;;
 
-  let tag_int n = 2 * n + 1
+  let tag_int n = (2 * n) + 1
   let fp = S 0
   let sp = SP
   let ra = RA

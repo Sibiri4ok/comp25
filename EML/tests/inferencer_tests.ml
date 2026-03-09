@@ -27,7 +27,6 @@ let pretty_printer_infer_simple_expression expr =
   | Error e -> Format.printf "Infer error. %a\n" pp_error e
 ;;
 
-
 let%expect_test "test_factorial" =
   pretty_printer_parse_and_infer
     {| let rec fac n =
@@ -103,7 +102,6 @@ let main = id 10 |};
     val id: int -> int
     val main: int|}]
 ;;
-
 
 let%expect_test "test_rec_rhs_error" =
   pretty_printer_parse_and_infer {| let rec x = 1 |};
@@ -183,7 +181,8 @@ let%expect_test "test_program_2" =
   pretty_printer_parse_and_infer
     "let square = fun x -> x * x\n\
     \                                  let result = square 10";
-  [%expect {|
+  [%expect
+    {|
     val result: int
     val square: int -> int|}]
 ;;
@@ -203,7 +202,6 @@ let%expect_test "test_option_type_error" =
     "let f x = Some (x + 1) in let g y = Some (y && true) in f = g";
   [%expect {|Infer error. Failed to unify types: bool and int.|}]
 ;;
-
 
 let%expect_test "test_polymorphic_identity" =
   pretty_printer_parse_and_infer
@@ -300,8 +298,7 @@ let main = compose inc double 10 |};
 ;;
 
 let%expect_test "test_occurs_check_error" =
-  pretty_printer_parse_and_infer
-    {| fun x -> x x |};
+  pretty_printer_parse_and_infer {| fun x -> x x |};
   [%expect
     {|Infer error. Occurs check failed. Type variable 't0' occurs inside t0 -> t1.|}]
 ;;
@@ -367,10 +364,10 @@ let main = run () |};
     val run: unit -> int|}]
 ;;
 
-
 let%expect_test "test_rec_lhs_not_variable_error" =
   pretty_printer_parse_and_infer {| let rec Some x = Some 1 |};
-  [%expect {|Infer error. Left-hand side error: Only variables are allowed on the left-hand side of let rec.|}]
+  [%expect
+    {|Infer error. Left-hand side error: Only variables are allowed on the left-hand side of let rec.|}]
 ;;
 
 let%expect_test "test_expr_let_rec_in" =
@@ -392,7 +389,6 @@ let%expect_test "test_expr_let_rec_and_in" =
        , ExpApply (ExpIdent "g", ExpConst (ConstInt 1)) ));
   [%expect {|int|}]
 ;;
-
 
 let%expect_test "test_string_const_and_const_pattern" =
   pretty_printer_parse_and_infer
