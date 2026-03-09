@@ -4,7 +4,7 @@
 
 open Stdio
 open EML_lib
-open Frontend
+open Middleend
 
 type backend =
   | Ricsv
@@ -39,28 +39,25 @@ let report_infer_error oc e =
     (Format.asprintf "Inferencer error: %a\n" Inferencer.pp_error e)
 ;;
 
-let with_frontend text env oc f_success : (env, unit) Result.t =
-  match Frontend.Runner.run text env with
+let with_frontend text oc f_success : (env, unit) Result.t =
+  match Frontend.Runner.run text with
   | Error (Frontend.Runner.Parse s) ->
     report_parse_error oc s;
     Error ()
-  | Error (Frontend.Runner.Infer e) ->
-    report_infer_error oc e;
-    Error ()
-  | Ok (ast, env', out_list) -> f_success ast env' out_list
+  | Ok ast -> f_success ast
 ;;
 
-let with_middleend ast _env' f : (env, unit) Result.t =
-  match Middleend.Runner.run ast with
+let with_middleend ast env f : (env, unit) Result.t =
+  match Middleend.Runner.run ast env with
   | Error e_mid ->
     Format.eprintf "Middleend error: %a\n%!" Middleend.Runner.pp_error e_mid;
     Error ()
-  | Ok anf_ast -> f anf_ast
+  | Ok (anf_ast, env') -> f anf_ast env'
 ;;
 
 let run_compile text env oc ~backend ~enable_gc : (env, unit) Result.t =
-  with_frontend text env oc (fun ast env' _out_list ->
-    with_middleend ast env' (fun anf_ast ->
+  with_frontend text oc (fun ast ->
+    with_middleend ast env (fun anf_ast env' ->
       let ppf = Format.formatter_of_out_channel oc in
       let res =
         match backend with
@@ -109,8 +106,8 @@ let compiler opts : (unit, unit) Result.t =
   in
   let env0 =
     if opts.enable_gc
-    then Inferencer.TypeEnv.env_with_gc
-    else Inferencer.TypeEnv.initial_env
+    then Middleend.Inferencer.TypeEnv.env_with_gc
+    else Middleend.Inferencer.TypeEnv.initial_env
   in
   let with_output f =
     match opts.output_file with

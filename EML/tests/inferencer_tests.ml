@@ -2,7 +2,7 @@
 
 (** SPDX-License-Identifier: LGPL-3.0-or-later *)
 
-open EML_lib.Frontend.Inferencer
+open EML_lib.Middleend.Inferencer
 open EML_lib.Frontend.Ast
 open EML_lib.Frontend.Parser
 

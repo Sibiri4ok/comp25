@@ -2,7 +2,7 @@
 
 (** SPDX-License-Identifier: LGPL-3.0-or-later *)
 
-open Ast
+open Frontend.Ast
 
 type error =
   | OccursCheck of string * ty

@@ -4,27 +4,17 @@
 
 open Ast
 open Format
-open Inferencer
 
-type error =
-  | Parse of string
-  | Infer of Inferencer.error
+type error = Parse of string
 
 let pp_error ppf = function
   | Parse s -> fprintf ppf "Parse error: %s" s
-  | Infer e -> fprintf ppf "Inference error: %a" Inferencer.pp_error e
 ;;
 
 let parse (text : string) : (program, string) Result.t = Parser.parse text
 
-let run (text : string) (env : TypeEnv.t)
-  : (program * TypeEnv.t * (ident option * ty) list, error) Result.t
-  =
+let run (text : string) : (program, error) Result.t =
   match Parser.parse text with
   | Error s -> Error (Parse s)
-  | Ok ast ->
-    (match Inferencer.ResultMonad.run (infer_structure env ast) with
-     | Error (OccursCheck _) -> Ok (ast, env, [])
-     | Error e -> Error (Infer e)
-     | Ok (_subst, env') -> Ok (ast, env', []))
+  | Ok ast -> Ok ast
 ;;

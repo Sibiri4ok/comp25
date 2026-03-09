@@ -5,7 +5,7 @@
 (* Template: https://gitlab.com/Kakadu/fp2020course-materials/-/tree/master/code/miniml?ref_type=heads*)
 
 open Base
-open Ast
+open Frontend.Ast
 open Stdlib.Format
 
 type error =
