@@ -71,7 +71,6 @@ let rec max_stack_args_cexpr = function
   | ComplexList imm_list -> max_by max_stack_args_imm imm_list
   | ComplexApp (_first, second, rest) ->
     let argument_count = 1 + List.length rest in
-    (* Reserve enough for largest call: eml_applyN needs nargs words; direct needs max(0, nargs-8). *)
     let required_stack_words = argument_count in
     let max_nested_argument_pressure = max_by max_stack_args_imm (second :: rest) in
     max required_stack_words max_nested_argument_pressure
@@ -102,7 +101,6 @@ let rec max_create_tuple_array_cexpr = function
     max here (max_by max_create_tuple_array_imm elts)
   | ComplexField (imm, _) -> max_create_tuple_array_imm imm
   | ComplexList imm_list ->
-    (* Each cons adds 16 bytes; they accumulate along the list build *)
     let bytes_per_cons_cell = 2 * word_size in
     let bytes_from_elements = sum_by max_create_tuple_array_imm imm_list in
     (bytes_per_cons_cell * List.length imm_list) + bytes_from_elements

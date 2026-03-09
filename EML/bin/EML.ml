@@ -94,10 +94,6 @@ let run_infer_only text env oc : (env, unit) Result.t =
        Ok env')
 ;;
 
-(* ------------------------------------------------------------------------- *)
-(* Compiler entry point                                                      *)
-(* ------------------------------------------------------------------------- *)
-
 let compiler opts : (unit, unit) Result.t =
   let run text env oc =
     if opts.infer_only
@@ -123,10 +119,6 @@ let compiler opts : (unit, unit) Result.t =
   | Ok _env -> Ok ()
   | Error () -> Error ()
 ;;
-
-(* ------------------------------------------------------------------------- *)
-(* CLI                                                                       *)
-(* ------------------------------------------------------------------------- *)
 
 let parse_args () : (opts, unit) Result.t =
   let parse_backend = function

@@ -36,8 +36,6 @@ let load_into_reg destination_register source_location =
   return ()
 ;;
 
-(** Spill function parameters to the frame in param order (index 0 → first slot).
-    Ensures env maps each param name to a consistent slot so (self l) loads self, not l. *)
 let spill_params_to_frame params_reg =
   Base.List.foldi params_reg ~init:(return ()) ~f:(fun index acc param ->
     let* () = acc in
@@ -313,7 +311,6 @@ and gen_curried_call
     modify_env (fun environment ->
       Base.Map.set environment ~key:part_name ~data:partial_function_location)
   in
-  (* Apply each rest_arg one at a time (eml_applyN expects one application per call) *)
   let rec apply_remaining_arguments = function
     | [] -> return ()
     | [ argument ] ->
@@ -353,7 +350,6 @@ and gen_binop dst binary_operator left_operand right_operand =
 and gen_branch dst cond then_e else_e =
   let* () = gen_imm t0 cond in
   let* else_lbl, end_lbl = fresh_branch in
-  (* Branch to else when cond equals tagged false (1); not zero *)
   let* () = append (li t1 (tag_int 0)) in
   let* () = append (beq t0 t1 else_lbl) in
   let* state_before_then = get in

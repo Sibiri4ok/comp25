@@ -2,8 +2,6 @@
 
 (** SPDX-License-Identifier: LGPL-3.0-or-later *)
 
-(** LLVM IR codegen tests (analogous to riscv_tests.ml). *)
-
 open EML_lib
 open Frontend.Parser
 open Middleend.Anf

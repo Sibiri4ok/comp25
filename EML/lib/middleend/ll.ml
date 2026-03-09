@@ -44,7 +44,6 @@ let names_in_pattern p =
       (match p_opt with
        | None -> []
        | Some x -> collect x)
-    (* | PatType _ -> ... *)
   in
   collect p
 ;;

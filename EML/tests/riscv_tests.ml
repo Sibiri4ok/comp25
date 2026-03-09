@@ -2,8 +2,6 @@
 
 (** SPDX-License-Identifier: LGPL-3.0-or-later *)
 
-(** RISC-V codegen tests. *)
-
 open EML_lib
 open Frontend.Parser
 open Middleend.Anf

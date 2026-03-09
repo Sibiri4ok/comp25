@@ -20,7 +20,6 @@ module ANFMonad = struct
   let run m = m 0 |> snd
   let fail msg = fun counter -> counter, Error msg
 
-  (** Монадические операторы *)
   module Syntax = struct
     let ( let* ) = ( >>= )
   end

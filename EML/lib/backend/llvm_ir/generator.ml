@@ -156,7 +156,6 @@ let untag_bool_val tagged_val =
 ;;
 
 let tag_bool_result cond_value =
-  (* false=2, true=4 via select (no zext) *)
   let tagged_i64 =
     build_select cond_value (const_int int_t 4) (const_int int_t 2) "tagged_bool" builder
   in
