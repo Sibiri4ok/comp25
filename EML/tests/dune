@@ -44,6 +44,8 @@
   (source_tree gc_tests)
   (source_tree many_tests)))
 
+;; LLVM tests require clang to be installed (e.g. apt-get install clang).
+
 (cram
  (applies_to llvm)
  (deps

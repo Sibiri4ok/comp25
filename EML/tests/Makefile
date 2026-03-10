@@ -4,17 +4,13 @@ EML_ROOT   ?= $(CURDIR)/..
 EML_BIN    ?= $(if $(findstring _build,$(EML_ROOT)),$(EML_ROOT)/bin/EML.exe,$(EML_ROOT)/_build/default/bin/EML.exe)
 RUNTIME_A  := $(if $(wildcard ../lib/runtime/rv64_runtime.a),../lib/runtime/rv64_runtime.a,../_build/default/lib/runtime/rv64_runtime.a)
 
-ARGS       := $(filter-out compile_riscv infer compile_llvm install-clang,$(MAKECMDGOALS))
+ARGS       := $(filter-out compile_riscv infer compile_llvm,$(MAKECMDGOALS))
 INPUT      := $(firstword $(ARGS))
 EXTRA_GOALS := $(ARGS)
 GC_FLAG    := $(if $(filter 1 true yes on,$(GC)),-gc,)
 CFLAGS_GC  := $(if $(filter 1 true yes on,$(GC)),-DENABLE_GC,)
 
-.PHONY: compile_riscv infer compile_llvm install-clang $(EXTRA_GOALS)
-
-install-clang:
-	@command -v clang >/dev/null && { echo "clang already installed"; exit 0; }; \
-	echo "Installing clang (apt-get)..."; sudo apt-get update && sudo apt-get install -y clang
+.PHONY: compile_riscv infer compile_llvm $(EXTRA_GOALS)
 
 compile_riscv:
 	@set -euo pipefail; \
@@ -43,10 +39,9 @@ infer:
 	[[ -f "$$FILE" ]] || { echo "Source file not found: $$FILE" >&2; exit 1; }; \
 	SRC="$$(realpath "$$FILE")"; \
 	"$(EML_BIN)" $(GC_FLAG) -infer -fromfile "$$SRC"
-	
+
 compile_llvm:
 	@set -euo pipefail; \
-	command -v clang >/dev/null || $(MAKE) install-clang; \
 	RT_DIR=""; d="$$(pwd)"; while [ -n "$$d" ] && [ "$$d" != "/" ]; do [ -f "$$d/lib/runtime/runtime.c" ] && RT_DIR="$$(realpath "$$d/lib/runtime")" && break; d="$$(dirname "$$d")"; done; \
 	[[ -n "$$RT_DIR" ]] || { echo "runtime not found (no lib/runtime/runtime.c in $$(pwd) or parents)" >&2; exit 1; }; \
 	FILE="$(INPUT)"; \

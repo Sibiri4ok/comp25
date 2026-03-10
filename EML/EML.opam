@@ -31,3 +31,6 @@ build: [
   ]
 ]
 dev-repo: "git+https://github.com/Kakadu/comp24.git"
+depexts: [
+  [ "llvm-18-dev" "clang" "gcc-riscv64-linux-gnu" "qemu-user" ] {os-distribution = "ubuntu"}
+]
