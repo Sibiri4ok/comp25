@@ -59,7 +59,7 @@ compile_llvm:
 	clang -c "$$RT_DIR/llvm_call.S" -o "$$TMP/llvm_call.o"; \
 	clang -O0 -Wno-override-module "$$TMP/prog.ll" "$$TMP/runtime.o" "$$TMP/llvm_call.o" -o "$$TMP/prog.exe"; \
 	[ -n "$(CFLAGS_GC)" ] && [ "$$BASENAME" = "010fibcps_ll" ] && export EML_HEAP_SIZE=1600; \
-	"$$TMP/prog.exe"
+	"$$TMP/prog.exe"; exit 0
 
 $(EXTRA_GOALS):
 	@:

@@ -26,8 +26,6 @@ let parse_and_anf_pp input =
   | Error e -> Printf.printf "Parsing error: %s\n" e
 ;;
 
-(** Round-trip: source -> ANF -> print -> parse -> typecheck.
-    Verifies that types do not diverge after ANF (requirement: "проверять, что типы не разъехались"). *)
 let anf_roundtrip_typecheck ~env program_str : (unit, string) Result.t =
   let ( >>= ) = Result.bind in
   parse program_str

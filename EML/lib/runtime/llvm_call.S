@@ -1,7 +1,3 @@
-# x86-64 SysV: llvm_call_indirect(void *fn, void **args, int64_t n)
-# Called from C runtime when invoking a closure. Loads args[0..n-1] into
-# registers (rdi,rsi,rdx,rcx,r8,r9) and stack, then calls fn.
-
 	.globl	llvm_call_indirect
 	.type	llvm_call_indirect, @function
 llvm_call_indirect:
@@ -34,3 +30,4 @@ llvm_call_indirect:
 	ret
 
 	.size	llvm_call_indirect, .-llvm_call_indirect
+	.section	.note.GNU-stack,"",@progbits
