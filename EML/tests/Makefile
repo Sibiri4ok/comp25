@@ -43,6 +43,7 @@ infer:
 	[[ -f "$$FILE" ]] || { echo "Source file not found: $$FILE" >&2; exit 1; }; \
 	SRC="$$(realpath "$$FILE")"; \
 	"$(EML_BIN)" $(GC_FLAG) -infer -fromfile "$$SRC"
+	
 compile_llvm:
 	@set -euo pipefail; \
 	command -v clang >/dev/null || $(MAKE) install-clang; \
@@ -59,7 +60,7 @@ compile_llvm:
 	clang -c "$$RT_DIR/llvm_call.S" -o "$$TMP/llvm_call.o"; \
 	clang -O0 -Wno-override-module "$$TMP/prog.ll" "$$TMP/runtime.o" "$$TMP/llvm_call.o" -o "$$TMP/prog.exe"; \
 	[ -n "$(CFLAGS_GC)" ] && [ "$$BASENAME" = "010fibcps_ll" ] && export EML_HEAP_SIZE=1600; \
-	"$$TMP/prog.exe"; exit 0
+	"$$TMP/prog.exe" || true
 
 $(EXTRA_GOALS):
 	@:

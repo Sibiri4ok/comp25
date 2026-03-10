@@ -903,34 +903,82 @@ let%expect_test "codegen closure fn with 10 arg" =
     define ptr @main() {
     entry:
       %boxed_alloc_closure = call ptr @alloc_closure(ptr @add, i64 7)
-      %apply_args = alloca [4 x ptr], align 8
-      %apply_arg_0 = getelementptr [4 x ptr], ptr %apply_args, i32 0, i32 0
-      store ptr inttoptr (i64 3 to ptr), ptr %apply_arg_0, align 8
-      %apply_arg_1 = getelementptr [4 x ptr], ptr %apply_args, i32 0, i32 1
-      store ptr inttoptr (i64 3 to ptr), ptr %apply_arg_1, align 8
-      %apply_arg_2 = getelementptr [4 x ptr], ptr %apply_args, i32 0, i32 2
-      store ptr inttoptr (i64 3 to ptr), ptr %apply_arg_2, align 8
-      %apply_arg_3 = getelementptr [4 x ptr], ptr %apply_args, i32 0, i32 3
-      store ptr inttoptr (i64 3 to ptr), ptr %apply_arg_3, align 8
-      %apply_args_ptr = getelementptr [4 x ptr], ptr %apply_args, i32 0, i32 0
-      %eml_applyN_result = call ptr @eml_applyN(ptr %boxed_alloc_closure, i64 4, ptr %apply_args_ptr)
-      %apply_args1 = alloca [2 x ptr], align 8
-      %apply_arg_02 = getelementptr [2 x ptr], ptr %apply_args1, i32 0, i32 0
-      store ptr inttoptr (i64 3 to ptr), ptr %apply_arg_02, align 8
-      %apply_arg_13 = getelementptr [2 x ptr], ptr %apply_args1, i32 0, i32 1
-      store ptr inttoptr (i64 3 to ptr), ptr %apply_arg_13, align 8
-      %apply_args_ptr4 = getelementptr [2 x ptr], ptr %apply_args1, i32 0, i32 0
-      %eml_applyN_result5 = call ptr @eml_applyN(ptr %eml_applyN_result, i64 2, ptr %apply_args_ptr4)
-      %apply_args6 = alloca [2 x ptr], align 8
-      %apply_arg_07 = getelementptr [2 x ptr], ptr %apply_args6, i32 0, i32 0
-      store ptr inttoptr (i64 3 to ptr), ptr %apply_arg_07, align 8
-      %apply_arg_18 = getelementptr [2 x ptr], ptr %apply_args6, i32 0, i32 1
-      store ptr inttoptr (i64 3 to ptr), ptr %apply_arg_18, align 8
-      %apply_args_ptr9 = getelementptr [2 x ptr], ptr %apply_args6, i32 0, i32 0
-      %eml_applyN_result10 = call ptr @eml_applyN(ptr %eml_applyN_result5, i64 2, ptr %apply_args_ptr9)
-      %print_int_arg = ptrtoint ptr %eml_applyN_result10 to i64
+      br label %apply_step_0
+
+    merge_0:                                          ; preds = %apply_step_3
+      %apply_result = phi ptr [ %apply_step_310, %apply_step_3 ]
+      br label %apply_step_011
+
+    apply_step_0:                                     ; preds = %entry
+      %apply_one = alloca [1 x ptr], align 8
+      %one_elem = getelementptr [1 x ptr], ptr %apply_one, i32 0, i32 0
+      store ptr inttoptr (i64 3 to ptr), ptr %one_elem, align 8
+      %apply_step_01 = call ptr @eml_applyN(ptr %boxed_alloc_closure, i64 1, ptr %one_elem)
+      br label %apply_step_1
+
+    apply_step_1:                                     ; preds = %apply_step_0
+      %cur_1 = phi ptr [ %apply_step_01, %apply_step_0 ]
+      %apply_one2 = alloca [1 x ptr], align 8
+      %one_elem3 = getelementptr [1 x ptr], ptr %apply_one2, i32 0, i32 0
+      store ptr inttoptr (i64 3 to ptr), ptr %one_elem3, align 8
+      %apply_step_14 = call ptr @eml_applyN(ptr %cur_1, i64 1, ptr %one_elem3)
+      br label %apply_step_2
+
+    apply_step_2:                                     ; preds = %apply_step_1
+      %cur_2 = phi ptr [ %apply_step_14, %apply_step_1 ]
+      %apply_one5 = alloca [1 x ptr], align 8
+      %one_elem6 = getelementptr [1 x ptr], ptr %apply_one5, i32 0, i32 0
+      store ptr inttoptr (i64 3 to ptr), ptr %one_elem6, align 8
+      %apply_step_27 = call ptr @eml_applyN(ptr %cur_2, i64 1, ptr %one_elem6)
+      br label %apply_step_3
+
+    apply_step_3:                                     ; preds = %apply_step_2
+      %cur_3 = phi ptr [ %apply_step_27, %apply_step_2 ]
+      %apply_one8 = alloca [1 x ptr], align 8
+      %one_elem9 = getelementptr [1 x ptr], ptr %apply_one8, i32 0, i32 0
+      store ptr inttoptr (i64 3 to ptr), ptr %one_elem9, align 8
+      %apply_step_310 = call ptr @eml_applyN(ptr %cur_3, i64 1, ptr %one_elem9)
+      br label %merge_0
+
+    merge_1:                                          ; preds = %apply_step_112
+      %apply_result20 = phi ptr [ %apply_step_119, %apply_step_112 ]
+      br label %apply_step_021
+
+    apply_step_011:                                   ; preds = %merge_0
+      %apply_one13 = alloca [1 x ptr], align 8
+      %one_elem14 = getelementptr [1 x ptr], ptr %apply_one13, i32 0, i32 0
+      store ptr inttoptr (i64 3 to ptr), ptr %one_elem14, align 8
+      %apply_step_015 = call ptr @eml_applyN(ptr %apply_result, i64 1, ptr %one_elem14)
+      br label %apply_step_112
+
+    apply_step_112:                                   ; preds = %apply_step_011
+      %cur_116 = phi ptr [ %apply_step_015, %apply_step_011 ]
+      %apply_one17 = alloca [1 x ptr], align 8
+      %one_elem18 = getelementptr [1 x ptr], ptr %apply_one17, i32 0, i32 0
+      store ptr inttoptr (i64 3 to ptr), ptr %one_elem18, align 8
+      %apply_step_119 = call ptr @eml_applyN(ptr %cur_116, i64 1, ptr %one_elem18)
+      br label %merge_1
+
+    merge_2:                                          ; preds = %apply_step_122
+      %apply_result30 = phi ptr [ %apply_step_129, %apply_step_122 ]
+      %print_int_arg = ptrtoint ptr %apply_result30 to i64
       call void @print_int(i64 %print_int_arg)
       ret ptr inttoptr (i64 1 to ptr)
+
+    apply_step_021:                                   ; preds = %merge_1
+      %apply_one23 = alloca [1 x ptr], align 8
+      %one_elem24 = getelementptr [1 x ptr], ptr %apply_one23, i32 0, i32 0
+      store ptr inttoptr (i64 3 to ptr), ptr %one_elem24, align 8
+      %apply_step_025 = call ptr @eml_applyN(ptr %apply_result20, i64 1, ptr %one_elem24)
+      br label %apply_step_122
+
+    apply_step_122:                                   ; preds = %apply_step_021
+      %cur_126 = phi ptr [ %apply_step_025, %apply_step_021 ]
+      %apply_one27 = alloca [1 x ptr], align 8
+      %one_elem28 = getelementptr [1 x ptr], ptr %apply_one27, i32 0, i32 0
+      store ptr inttoptr (i64 3 to ptr), ptr %one_elem28, align 8
+      %apply_step_129 = call ptr @eml_applyN(ptr %cur_126, i64 1, ptr %one_elem28)
+      br label %merge_2
     }
 
     attributes #0 = { nocallback nofree nosync nounwind willreturn memory(none) } |}]

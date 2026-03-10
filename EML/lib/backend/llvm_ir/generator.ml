@@ -395,6 +395,16 @@ let rec gen_cexpr = function
       imm_unit
     else
       let* callee_value, callee_from_alloca =
+        let resolve_callee () =
+          let* resolved_value = resolved_find_value_opt fname in
+          match resolved_value with
+          | Some v -> return (v, false)
+          | None ->
+            let* value_opt = find_value_opt fname in
+            (match value_opt with
+             | Some v -> return (v, false)
+             | None -> fail ("Unbound function: " ^ fname))
+        in
         let* gc_allocas = get_gc_allocas in
         match gc_allocas with
         | Some allocas ->
@@ -402,24 +412,8 @@ let rec gen_cexpr = function
            | Some alloca ->
              let* v = with_optional_value (load builder ptr_t alloca fname) in
              return (v, true)
-           | None ->
-             let* value_opt = find_value_opt fname in
-             (match value_opt with
-              | Some v -> return (v, false)
-              | None ->
-                let* resolved_value = resolved_find_value_opt fname in
-                (match resolved_value with
-                 | None -> fail ("Unbound function: " ^ fname)
-                 | Some v -> return (v, false))))
-        | None ->
-          let* value_opt = find_value_opt fname in
-          (match value_opt with
-           | Some v -> return (v, false)
-           | None ->
-             let* resolved_value = resolved_find_value_opt fname in
-             (match resolved_value with
-              | None -> fail ("Unbound function: " ^ fname)
-              | Some v -> return (v, false)))
+           | None -> resolve_callee ())
+        | None -> resolve_callee ()
       in
       let* args =
         List.fold_left
@@ -485,42 +479,77 @@ let rec gen_cexpr = function
                eml_applyN_func
                [| closure_value; const_int int_t 0; args_ptr |]
                "boxed_eml_applyN"))
-        else (
-          (* Single eml_applyN(closure, num_args, argv) call, like RISC-V *)
-          let arr_ty = Llvm.array_type ptr_t num_args in
-          let* alloca_arr =
-            with_optional_value (Some (Llvm.build_alloca arr_ty "apply_args" builder))
+        else
+          let* _then_name, _else_name, merge_name = fresh_blocks in
+          let current_func = block_parent (insertion_block builder) in
+          let merge_block = append_block context merge_name current_func in
+          let blocks =
+            Array.init num_args (fun i ->
+              append_block context ("apply_step_" ^ Int.to_string i) current_func)
           in
-          let () =
-            for i = 0 to num_args - 1 do
-              let elem_ptr =
-                Llvm.build_gep
-                  arr_ty
-                  alloca_arr
-                  [| Llvm.const_int i32_t 0; Llvm.const_int i32_t i |]
-                  ("apply_arg_" ^ Int.to_string i)
-                  builder
+          let apply_one_step closure arg name =
+            let one_ty = Llvm.array_type ptr_t 1 in
+            let a = Llvm.build_alloca one_ty "apply_one" builder in
+            let p =
+              Llvm.build_gep
+                one_ty
+                a
+                [| Llvm.const_int i32_t 0; Llvm.const_int i32_t 0 |]
+                "one_elem"
+                builder
+            in
+            Llvm_backend.store builder arg p;
+            Llvm_backend.call
+              builder
+              eml_applyN_type
+              eml_applyN_func
+              [| closure; const_int int_t 1; p |]
+              name
+          in
+          let result_vals = Array.make num_args (Llvm.const_null ptr_t) in
+          let* () = emit_void_st builder (Br blocks.(0)) in
+          let rec loop step_index =
+            if step_index >= num_args
+            then return ()
+            else (
+              let () = position_at_end blocks.(step_index) builder in
+              let* cur =
+                if step_index = 0
+                then return closure_value
+                else
+                  with_optional_value
+                    (Llvm_backend.phi
+                       builder
+                       [ result_vals.(step_index - 1), blocks.(step_index - 1) ]
+                       ("cur_" ^ Int.to_string step_index))
               in
-              Llvm_backend.store builder args_values.(i) elem_ptr
-            done
+              let* step_result =
+                with_optional_value
+                  (apply_one_step
+                     cur
+                     args_values.(step_index)
+                     ("apply_step_" ^ Int.to_string step_index))
+              in
+              let () = result_vals.(step_index) <- step_result in
+              let* () =
+                emit_void_st
+                  builder
+                  (if step_index < num_args - 1
+                   then Br blocks.(step_index + 1)
+                   else Br merge_block)
+              in
+              loop (step_index + 1))
           in
-          let* args_ptr =
+          let* () = loop 0 in
+          let () = position_at_end merge_block builder in
+          let* final_val =
             with_optional_value
-              (Some
-                 (Llvm.build_gep
-                    arr_ty
-                    alloca_arr
-                    [| Llvm.const_int i32_t 0; Llvm.const_int i32_t 0 |]
-                    "apply_args_ptr"
-                    builder))
+              (Llvm_backend.phi
+                 builder
+                 [ result_vals.(num_args - 1), blocks.(num_args - 1) ]
+                 "apply_result")
           in
-          with_optional_value
-            (call
-               builder
-               eml_applyN_type
-               eml_applyN_func
-               [| closure_value; const_int int_t num_args; args_ptr |]
-               "eml_applyN_result"))
+          return final_val
   | ComplexApp (_, _, _) ->
     fail "LLVM codegen: ComplexApp with non-variable function not supported"
   | ComplexBranch (cond_imm, then_e, else_e) ->

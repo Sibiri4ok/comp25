@@ -1,10 +1,6 @@
-[@@@ocaml.text "/*"]
-
 (** Copyright 2025-2026, Victoria Ostrovskaya & Danil Usoltsev *)
 
 (** SPDX-License-Identifier: LGPL-3.0-or-later *)
-
-[@@@ocaml.text "/*"]
 
 open Frontend.Ast
 open Base
@@ -37,7 +33,6 @@ and anf_expr =
 
 type arity = int
 
-(* Used by [@@deriving show] for types containing [arity]; not exported. *)
 let pp_arity ppf (n : arity) = Stdlib.Format.pp_print_int ppf n
 
 type anf_bind = ident * anf_expr [@@deriving show { with_path = false }]
@@ -259,7 +254,7 @@ let rec anf (expr : expr) (k : immediate -> anf_expr t) : anf_expr t =
                   , branch_result ) )))
      | None -> fail "Only list match with [] and h::tl is supported")
   | ExpFunction _ -> fail "Match/function cases not implemented"
-  | ExpConstruct ("[]", None) -> bind_complex_expr (ComplexList []) k
+  | ExpConstruct ("[]", None) -> k (ImmediateConst (ConstInt 0))
   | ExpConstruct ("::", Some (ExpTuple (head_e, tail_e, []))) ->
     anf head_e (fun head_imm ->
       anf tail_e (fun tail_imm ->
