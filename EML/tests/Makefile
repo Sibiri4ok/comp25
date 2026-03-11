@@ -29,7 +29,7 @@ compile_riscv:
 	OBJ_FILE="$$TMP_BIN/prog.o"; EXE_FILE="$$TMP_BIN/prog.exe"; \
 	riscv64-linux-gnu-as -march=rv64gc "$$ASM_FILE" -o "$$OBJ_FILE"; \
 	riscv64-linux-gnu-gcc "$$OBJ_FILE" "$(RUNTIME_A)" -o "$$EXE_FILE"; \
-	qemu-riscv64 -L /usr/riscv64-linux-gnu -cpu rva23s64 "$$EXE_FILE"
+	qemu-riscv64 -L /usr/riscv64-linux-gnu -cpu max "$$EXE_FILE"
 
 infer:
 	@set -euo pipefail; \
