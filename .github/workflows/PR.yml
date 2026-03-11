@@ -22,6 +22,12 @@ jobs:
       - name: Print
         run: env | sort
 
+      - name: Print OS info
+        run: |
+          cat /etc/os-release
+          uname -a
+          lsb_release -a || true
+
 ##### DEBUG HACK
       - name: Get changed files in the docs folder
         id: changed-files-specific

@@ -37,6 +37,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Print OS info
+        run: |
+          cat /etc/os-release
+          uname -a
+          lsb_release -a || true
+
       - run: ls -la
       #- run: git log
       #- run: git diff --name-only HEAD~0 HEAD~1
