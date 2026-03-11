@@ -13,6 +13,7 @@ type function_layout =
   ; asm_name : string
   ; params : immediate list
   ; body : anf_expr
+  ; is_rec : bool
   ; slots_count : int
   ; max_stack_args : int
   ; max_create_tuple_array_bytes : int
@@ -156,13 +157,14 @@ let analyze (program : anf_program) =
   let analyzed_functions_raw =
     List.filter_map
       (function
-        | AnfValue (_, (func_name, arity, body), _) ->
+        | AnfValue (rec_flag, (func_name, arity, body), _) ->
           let params, body = params_of_anf body in
           Some
             ( func_name
             , arity
             , params
             , body
+            , rec_flag = Rec
             , slots_in_anf body
             , max_stack_args_anf body
             , max_create_tuple_array_anf body )
@@ -183,6 +185,7 @@ let analyze (program : anf_program) =
         , _arity
         , params
         , body
+        , is_rec
         , slots_count
         , max_stack_args
         , max_create_tuple_array_bytes ) ->
@@ -202,6 +205,7 @@ let analyze (program : anf_program) =
            ; asm_name
            ; params
            ; body
+           ; is_rec
            ; slots_count
            ; max_stack_args
            ; max_create_tuple_array_bytes
@@ -222,6 +226,7 @@ let analyze (program : anf_program) =
         ; asm_name = "main"
         ; params = []
         ; body = AnfExpr (ComplexImmediate (ImmediateConst (ConstInt 0)))
+        ; is_rec = false
         ; slots_count = 0
         ; max_stack_args = 0
         ; max_create_tuple_array_bytes = 0
@@ -242,7 +247,13 @@ let analyze (program : anf_program) =
            Some (fn.asm_name, List.length fn.params)
          | Some _ -> find_visible_function (i - 1))
     in
-    find_visible_function current_function_index
+    let start_index =
+      match Base.List.nth functions current_function_index with
+      | Some fn when fn.is_rec && String.equal fn.func_name variable_name ->
+        current_function_index
+      | _ -> current_function_index - 1
+    in
+    find_visible_function start_index
   in
   { arity_map; functions; resolve = resolver }
 ;;

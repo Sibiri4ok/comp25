@@ -11,6 +11,7 @@ type function_layout =
   ; asm_name : string
   ; params : immediate list
   ; body : anf_expr
+  ; is_rec : bool
   }
 
 type analysis_result =
@@ -36,9 +37,9 @@ let analyze (program : anf_program) =
   let raw =
     List.filter_map
       (function
-        | AnfValue (_, (func_name, arity, body), _) ->
+        | AnfValue (rec_flag, (func_name, arity, body), _) ->
           let params, body = params_of_anf body in
-          Some (func_name, arity, params, body)
+          Some (func_name, arity, params, body, rec_flag = Rec)
         | AnfEval _ -> None)
       program
   in
@@ -51,7 +52,7 @@ let analyze (program : anf_program) =
   in
   let functions, _ =
     List.fold_left
-      (fun (reversed_functions, counts) (func_name, _arity, params, body) ->
+      (fun (reversed_functions, counts) (func_name, _arity, params, body, is_rec) ->
          let base_asm_name = mangle_reserved func_name in
          let duplicate_index =
            Base.Map.find counts func_name |> Option.value ~default:0
@@ -64,7 +65,8 @@ let analyze (program : anf_program) =
            then base_asm_name
            else base_asm_name ^ "_" ^ Int.to_string duplicate_index
          in
-         { func_name; asm_name; params; body } :: reversed_functions, updated_counts)
+         ( { func_name; asm_name; params; body; is_rec } :: reversed_functions
+         , updated_counts ))
       ([], Base.Map.empty (module Base.String))
       raw
   in
@@ -81,6 +83,7 @@ let analyze (program : anf_program) =
         ; asm_name = "main"
         ; params = []
         ; body = AnfExpr (ComplexImmediate (ImmediateConst (ConstInt 0)))
+        ; is_rec = false
         }
       in
       functions @ [ synthetic_main ])
@@ -96,7 +99,14 @@ let analyze (program : anf_program) =
           Some (func_layout.asm_name, List.length func_layout.params)
         | Some _ -> find (i - 1))
     in
-    find func_index
+    let start_index =
+      match Base.List.nth functions func_index with
+      | Some func_layout
+        when func_layout.is_rec && String.equal func_layout.func_name var_name ->
+        func_index
+      | _ -> func_index - 1
+    in
+    find start_index
   in
   { functions; resolve = resolver }
 ;;

@@ -9,6 +9,7 @@ type function_layout =
   ; asm_name : string
   ; params : immediate list
   ; body : anf_expr
+  ; is_rec : bool
   }
 
 type analysis_result =
