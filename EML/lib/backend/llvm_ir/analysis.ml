@@ -96,7 +96,7 @@ let analyze (program : anf_program) =
           Some (func_layout.asm_name, List.length func_layout.params)
         | Some _ -> find (i - 1))
     in
-    find (func_index - 1)
+    find func_index
   in
   { functions; resolve = resolver }
 ;;

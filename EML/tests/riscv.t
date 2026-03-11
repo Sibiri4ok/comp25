@@ -76,3 +76,6 @@ SPDX-License-Identifier: LGPL-3.0-or-later
   1
   1
   1
+
+  $ make compile_riscv additional_tests/mangling_test.ml
+  24

@@ -242,7 +242,7 @@ let analyze (program : anf_program) =
            Some (fn.asm_name, List.length fn.params)
          | Some _ -> find_visible_function (i - 1))
     in
-    find_visible_function (current_function_index - 1)
+    find_visible_function current_function_index
   in
   { arity_map; functions; resolve = resolver }
 ;;
