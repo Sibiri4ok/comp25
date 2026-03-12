@@ -286,15 +286,10 @@ typedef struct {
 } closure;
 
 #if defined(EML_LLVM)
-
-extern void *llvm_call_indirect(void *fn, void **args, int64_t n);
-
 static void *call_closure_full(closure *c, void **args) {
-  return llvm_call_indirect(c->code, args, c->arity);
+  return ((void *(*)(void **))c->code)(args);
 }
-
-#else /* EML_RISCV */
-
+#else
 #define RISCV_REG_ARGS 8
 
 static void *call_closure_full(closure *c, void **args) {
@@ -346,8 +341,7 @@ static void *call_closure_full(closure *c, void **args) {
 
   return result;
 }
-
-#endif /* EML_LLVM / EML_RISCV */
+#endif /* EML_LLVM */
 
 closure *alloc_closure(void *code, int64_t arity) {
   size_t slots = (arity > 0) ? (size_t)arity : 1;
