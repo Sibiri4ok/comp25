@@ -2,3 +2,8 @@
  (public_name XML)
  (name XML)
  (libraries XML.Backend XML.Common XML.Middleend))
+
+(executable
+ (public_name XML_llvm)
+ (name XML_llvm)
+ (libraries XML.Backend XML.Common XML.Middleend))

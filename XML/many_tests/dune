@@ -15,9 +15,10 @@
  (inline_tests))
 
 (cram
- (applies_to codegen anf cc ll gc)
+ (applies_to codegen codegen_llvm anf cc ll gc gc_llvm llvm_tweaks infer)
  (deps
   ../bin/XML.exe
+  ../bin/XML_llvm.exe
   ../bin/runtime.c
   manytests/do_not_type/001.ml
   manytests/do_not_type/002if.ml

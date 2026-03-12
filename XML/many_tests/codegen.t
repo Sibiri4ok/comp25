@@ -1352,7 +1352,7 @@
   $ qemu-riscv64 -L /usr/riscv64-linux-gnu -cpu rv64 ./prog.exe
   30
 
-  $ ../bin/XML.exe -o tuple_linked_list.s <<EOF
+  $ dune exec -- ../bin/XML.exe -o tuple_linked_list.s -notypes <<EOF
   > let rec sum_list lst =
   >   if lst = 0 then 0 else
   >   let (head, tail) = lst in
@@ -1409,7 +1409,7 @@
   $ qemu-riscv64 -L /usr/riscv64-linux-gnu -cpu rv64 ./prog.exe
   42
 
-  $ ../bin/XML.exe -o tuple_gc_stress.s <<EOF
+  $ dune exec -- ../bin/XML.exe -o tuple_gc_stress.s -notypes <<EOF
   > let rec make_list n acc =
   >   if n = 0 then acc else
   >   make_list (n - 1) (n, acc)

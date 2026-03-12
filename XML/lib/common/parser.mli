@@ -6,6 +6,8 @@ open Ast
 
 val parse : string -> (program, string) result
 val parse_str : string -> program
+val parse_exp_str : string -> Expression.t
+val parse_pat_str : string -> Pattern.t
 val pass_ws : unit Angstrom.t
 val pass_ws1 : unit Angstrom.t
 val token : string -> string Angstrom.t

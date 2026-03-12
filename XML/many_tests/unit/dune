@@ -1,0 +1,9 @@
+(library
+ (name XML_unittests)
+ (public_name XML.Many_tests.Unittests)
+ (libraries base stdio XML.Common XML.Middleend XML.Backend)
+ (preprocess
+  (pps ppx_expect ppx_inline_test ppx_expect))
+ (instrumentation
+  (backend bisect_ppx))
+ (inline_tests))

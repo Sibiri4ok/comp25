@@ -76,7 +76,6 @@ type 'a r = ('a, cg_error) result
 let ok x = Ok x
 let err e = Error e
 let ( let* ) = Result.bind
-let ( let+ ) x f = Result.map f x
 
 let fresh_label (prefix : string) (st : cg_state) : string * cg_state =
   let n = st.next_label in

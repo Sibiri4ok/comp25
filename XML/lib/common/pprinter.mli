@@ -6,6 +6,7 @@ open Ast
 
 val pprint_constant : Format.formatter -> Constant.t -> unit
 val pprint_type : Format.formatter -> TypeExpr.t -> unit
+val pprint_env : (ident * TypeExpr.t) list -> ident list -> unit
 val pprint_pattern : Format.formatter -> Pattern.t -> unit
 val pprint_rec : Format.formatter -> Expression.rec_flag -> unit
 val pprint_expression : Format.formatter -> int -> Expression.t -> unit

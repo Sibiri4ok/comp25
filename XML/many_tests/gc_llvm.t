@@ -1,12 +1,15 @@
-  $ dune exec ./../bin/XML.exe -- -o gc_smoke.s <<EOF
+  $ clang-18 --target=riscv64-linux-gnu --sysroot=/usr/riscv64-unknown-linux-gnu -c ./../bin/runtime.c -o runtime.o
+
+  $ dune exec ./../bin/XML_llvm.exe -- -o gc_smoke.ll <<EOF
   > let main =
   >   let _ = print_gc_status in
   >   let _ = collect in
   >   print_gc_status
-  $ riscv64-linux-gnu-as -march=rv64gc gc_smoke.s -o temp.o
-  $ riscv64-linux-gnu-gcc -c ../bin/runtime.c -o runtime.o
-  $ riscv64-linux-gnu-gcc temp.o runtime.o -o prog.exe
-  $ qemu-riscv64 -L /usr/riscv64-linux-gnu -cpu rv64 ./prog.exe
+
+  $ llc-18 gc_smoke.ll -o gc_smoke.s
+  $ clang-18 --target=riscv64-linux-gnu --sysroot=/usr/riscv64-unknown-linux-gnu -c ./../bin/runtime.c -o runtime.o
+  $ clang-18 --target=riscv64-linux-gnu -static gc_smoke.s runtime.o -o gc_smoke.exe
+  $ qemu-riscv64 -L /usr/riscv64-linux-gnu/ -cpu rv64 ./gc_smoke.exe
   === GC Status ===
   Current allocated: 0
   Free        space: 524288
@@ -26,7 +29,9 @@
   GC    allocations: 0
   =================
 
-  $ dune exec ./../bin/XML.exe -- -o lots_of_garbage.s <<EOF
+
+
+  $ dune exec ./../bin/XML_llvm.exe -- -o lots_of_garbage.ll <<EOF
   > let rec make_garbage n =
   >   if n = 0 then 0 else
   >     let _ = alloc_block 1 in
@@ -40,10 +45,9 @@
   >   let _ = print_gc_status in
   >   print_int (f 8)
 
-  $ riscv64-linux-gnu-as -march=rv64gc lots_of_garbage.s -o temp.o
-  $ riscv64-linux-gnu-gcc -c ../bin/runtime.c -o runtime.o
-  $ riscv64-linux-gnu-gcc temp.o runtime.o -o prog.exe
-  $ qemu-riscv64 -L /usr/riscv64-linux-gnu -cpu rv64 ./prog.exe
+  $ llc-18 lots_of_garbage.ll -o lots_of_garbage.s
+  $ clang-18  --target=riscv64-linux-gnu -static lots_of_garbage.s runtime.o -o lots_of_garbage.exe
+  $ qemu-riscv64 -L /usr/riscv64-linux-gnu/ -cpu rv64 ./lots_of_garbage.exe
   === GC Status ===
   Current allocated: 0
   Free        space: 524288
@@ -75,7 +79,7 @@
 
 
 
-  $ dune exec ./../bin/XML.exe -- -o keep_block_across_gc.s <<EOF
+  $ dune exec ./../bin/XML_llvm.exe -- -o keep_block_across_gc.ll <<EOF
   > let rec spam n =
   >   if n = 0 then 0 else
   >     let _ = (fun z -> z) in
@@ -90,26 +94,30 @@
   >   let _ = spam 4000 in
   >   let _ = collect in
   >   print_int (f 7)
-  $ riscv64-linux-gnu-as -march=rv64gc keep_block_across_gc.s -o temp.o
-  $ riscv64-linux-gnu-gcc -c ../bin/runtime.c -o runtime.o
-  $ riscv64-linux-gnu-gcc temp.o runtime.o -o prog.exe
-  $ qemu-riscv64 -L /usr/riscv64-linux-gnu -cpu rv64 ./prog.exe
+
+  $ llc-18 keep_block_across_gc.ll -o keep_block_across_gc.s
+  $ clang-18  --target=riscv64-linux-gnu -static keep_block_across_gc.s runtime.o -o keep_block_across_gc.exe
+  $ qemu-riscv64 -L /usr/riscv64-linux-gnu/ -cpu rv64 ./keep_block_across_gc.exe
   7
 
-  $ dune exec ./../bin/XML.exe -- -o gc_oom_block.s <<EOF
+
+
+  $ dune exec ./../bin/XML_llvm.exe -- -o gc_oom_block.ll <<EOF
   > let main =
   >   let _ = alloc_block 10000000 in
   >   print_int 0
 
-  $ riscv64-linux-gnu-as -march=rv64gc gc_oom_block.s -o temp.o
-  $ riscv64-linux-gnu-gcc -c ../bin/runtime.c -o runtime.o
-  $ riscv64-linux-gnu-gcc temp.o runtime.o -o prog.exe
-  $ qemu-riscv64 -L /usr/riscv64-linux-gnu -cpu rv64 ./prog.exe || true
+  $ llc-18 gc_oom_block.ll -o gc_oom_block.s
+  $ clang-18  --target=riscv64-linux-gnu -static gc_oom_block.s runtime.o -o gc_oom_block.exe
+  $ qemu-riscv64 -L /usr/riscv64-linux-gnu/ -cpu rv64 ./gc_oom_block.exe
   GC: out of memory: asked for 160000024 bytes)
   Aborted (core dumped)
+  [134]
 
 
-  $ dune exec -- ../bin/XML.exe -o tuple_gc_stress.s -notypes <<EOF
+
+
+  $ dune exec -- ../bin/XML_llvm.exe -o temp.ll -notypes <<EOF
   > let rec make_list n acc =
   >   if n = 0 then acc else
   >   make_list (n - 1) (n, acc)
@@ -120,9 +128,10 @@
   >   let (head, tail) = result in
   >   let _ = print_gc_status in
   >   print_int head
-  $ riscv64-linux-gnu-as -march=rv64gc tuple_gc_stress.s -o temp.o
-  $ riscv64-linux-gnu-gcc temp.o runtime.o -o prog.exe
-  $ qemu-riscv64 -L /usr/riscv64-linux-gnu -cpu rv64 ./prog.exe
+
+  $ llc-18 temp.ll -o temp.s
+  $ clang-18  --target=riscv64-linux-gnu -static temp.s runtime.o -o temp.exe
+  $ qemu-riscv64 -L /usr/riscv64-linux-gnu/ -cpu rv64 ./temp.exe
   === GC Status ===
   Current allocated: 0
   Free        space: 524288

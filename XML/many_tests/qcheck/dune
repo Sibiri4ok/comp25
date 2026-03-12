@@ -1,0 +1,27 @@
+(executable
+ (name run_ast_qcheck)
+ (libraries
+  stdio
+  XML.Common
+  XML.Backend
+  qcheck-core
+  qcheck-core.runner
+  ppx_deriving_qcheck))
+
+(cram
+ (applies_to ast_qcheck)
+ (deps ./run_ast_qcheck.exe))
+
+(executable
+ (name run_machine_qcheck)
+ (libraries
+  stdio
+  XML.Common
+  XML.Backend
+  qcheck-core
+  qcheck-core.runner
+  ppx_deriving_qcheck))
+
+(cram
+ (applies_to machine_qcheck)
+ (deps ./run_machine_qcheck.exe))

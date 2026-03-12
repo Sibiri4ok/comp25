@@ -11,6 +11,7 @@ open Common.Ast
 type im_expr =
   | Imm_num of int
   | Imm_ident of ident
+[@@deriving show { with_path = false }]
 
 (* Complex/Computable expression *)
 type comp_expr =
@@ -24,16 +25,19 @@ type comp_expr =
       im_expr list (* Allocate a memory block and initialize it with values. *)
   | Comp_load of
       im_expr * int (* Load a value from memory: Comp_load(address, byte_offset). *)
+[@@deriving show { with_path = false }]
 
 and anf_expr =
   | Anf_comp_expr of comp_expr
   | Anf_let of rec_flag * ident * comp_expr * anf_expr
+[@@deriving show { with_path = false }]
 
 type astructure_item =
   | Anf_str_eval of anf_expr
   | Anf_str_value of rec_flag * ident * anf_expr
+[@@deriving show { with_path = false }]
 
-type aprogram = astructure_item list
+type aprogram = astructure_item list [@@deriving show { with_path = false }]
 
 type anf_error =
   [ `Only_simple_var_params
@@ -258,7 +262,6 @@ let norm_item (item : structure_item) (st : nstate) : (astructure_item * nstate)
        let* body_anf, st' = norm_body expr st in
        ok (Anf_str_value (rec_flag, name, body_anf), st')
      | _ -> err `Unsupported_toplevel_let)
-  | _ -> err `Unsupported_toplevel_item
 ;;
 
 let anf_program_res (program : structure_item list) : (aprogram, anf_error) result =

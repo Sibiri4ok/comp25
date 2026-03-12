@@ -13,11 +13,12 @@ type options =
   { mutable input_file_name : string option
   ; mutable from_file_name : string option
   ; mutable output_file_name : string option
+  ; mutable optimization_lvl : string option
+  ; mutable target : string
   ; mutable show_ast : bool
   ; mutable show_anf : bool
   ; mutable show_cc : bool
   ; mutable show_ll : bool
-  ; mutable gc_stats : bool
   ; mutable check_types : bool
   ; mutable show_types : bool
   }
@@ -26,15 +27,16 @@ type options =
 (*     Compiler Entry Points       *)
 (* ------------------------------- *)
 
-let to_asm ~gc_stats ast : string =
+let to_llvm_ir ast options =
   let cc_program = Middleend.Cc.cc_program ast in
   let anf_ast = Middleend.Anf.anf_program cc_program in
   let ll_anf = Middleend.Ll.lambda_lift_program anf_ast in
-  let buf = Buffer.create 1024 in
-  let ppf = formatter_of_buffer buf in
-  Backend.Codegen.gen_program_with_gc_stats ~gc_stats ppf ll_anf;
-  pp_print_flush ppf ();
-  Buffer.contents buf
+  (* let buf = Buffer.create 1024 in
+  let ppf = formatter_of_buffer buf in *)
+  (* let triple = "x86_64-pc-linux-gnu" in *)
+  let target = options.target in
+  let opt = options.optimization_lvl in
+  Backend.Codegen_llvm.gen_program_ir ll_anf target opt
 ;;
 
 let compile_and_write options source_code =
@@ -52,7 +54,8 @@ let compile_and_write options source_code =
      | Error err -> Format.printf "Type error: %a\n" Middleend.Infer.pprint_err err);
   if options.show_ast
   then (
-    printf "%a\n" Common.Pprinter.pprint_program ast;
+    (* printf "%a\n" Common.Pprinter.pprint_program ast; *)
+    printf "%s\n" (Common.Ast.show_program ast);
     exit 0);
   let cc_ast = Middleend.Cc.cc_program ast in
   if options.show_cc
@@ -67,20 +70,21 @@ let compile_and_write options source_code =
   let anf_after_ll = Middleend.Ll.lambda_lift_program anf_ast in
   if options.show_ll
   then (
-    Middleend.Pprinter.print_anf_program std_formatter anf_after_ll;
+    (* Middleend.Pprinter.print_anf_program std_formatter anf_after_ll; *)
+    printf "%s\n" (Middleend.Anf.show_aprogram anf_after_ll);
     exit 0);
-  let asm_code = to_asm ~gc_stats:options.gc_stats ast in
+  let llvm_ir_code = to_llvm_ir ast options in
   match options.output_file_name with
   | Some out_file ->
     (try
        let oc = open_out out_file in
-       output_string oc asm_code;
+       output_string oc llvm_ir_code;
        close_out oc
      with
      | Sys_error msg ->
        eprintf "Error: Could not write to output file '%s': %s\n" out_file msg;
        exit 1)
-  | None -> print_string asm_code
+  | None -> print_string llvm_ir_code
 ;;
 
 let read_channel_to_string ic =
@@ -119,7 +123,8 @@ let () =
     ; show_anf = false
     ; show_cc = false
     ; show_ll = false
-    ; gc_stats = false
+    ; optimization_lvl = None
+    ; target = "riscv64-unknown-linux-gnu"
     ; check_types = true
     ; show_types = false
     }
@@ -133,7 +138,7 @@ let () =
   let arg_specs =
     [ ( "-o"
       , Arg.String (fun fname -> options.output_file_name <- Some fname)
-      , " <file>  Set the output file name for the assembly code" )
+      , " <file>  Set the output file name for the llvm ir code" )
     ; ( "--ast"
       , Arg.Unit (fun () -> options.show_ast <- true)
       , "         Show the parsed Abstract Syntax Tree and exit" )
@@ -149,9 +154,12 @@ let () =
     ; ( "--ll"
       , Arg.Unit (fun () -> options.show_ll <- true)
       , "         Show ANF after lambda lifting and exit" )
-    ; ( "--gc-stats"
-      , Arg.Unit (fun () -> options.gc_stats <- true)
-      , "     Enable GC statistics and force a collection at program start/end" )
+    ; ( "-O"
+      , Arg.String (fun opt -> options.optimization_lvl <- Some opt)
+      , "         Set IR optimization level, \"O0\" by default" )
+    ; ( "-t"
+      , Arg.String (fun targ -> options.target <- targ)
+      , "         Set target platform, \"riscv64-unknown-linux-gnu\" by default" )
     ; ( "-notypes"
       , Arg.Unit (fun () -> options.check_types <- false)
       , "         Do not typecheck the program before compilation" )

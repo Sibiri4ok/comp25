@@ -10,10 +10,13 @@ type reg =
   | SP
   | Zero
 
+val gen_reg : reg QCheck.Gen.t
 val equal_reg : reg -> reg -> bool
 val pp_reg : Format.formatter -> reg -> unit
 
 type offset = reg * int
+
+val gen_offset : offset QCheck.Gen.t
 
 type instr =
   | Addi of reg * reg * int (* ADD immediate *)
@@ -43,6 +46,7 @@ type instr =
   | Slli of reg * reg * int (* << imm *)
   | Srai of reg * reg * int (* >> imm (arith) *)
 
+val gen_instr : instr QCheck.Gen.t
 val pp_instr : Format.formatter -> instr -> unit
 val addi : (instr -> 'a) -> reg -> reg -> int -> 'a
 val add : (instr -> 'a) -> reg -> reg -> reg -> 'a

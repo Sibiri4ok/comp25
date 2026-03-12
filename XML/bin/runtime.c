@@ -207,7 +207,9 @@ static void* gc_alloc_bytes(size_t n, GCType* vt) {
 
     if (alloc_ptr + n > from_end) {
         gc_collect();
-        if (alloc_ptr + n > from_end) panic("GC: out of memory");
+        char msg[100];
+        sprintf(msg, "GC: out of memory: asked for %ld bytes)", n);
+        if (alloc_ptr + n > from_end) panic(msg);
     }
     uint8_t* p = alloc_ptr;
     alloc_ptr += n;
@@ -236,6 +238,16 @@ void* alloc_block(int64_t len) {
 
 value create_tuple(int64_t n) {
     return (value)alloc_block(n);
+}
+
+value create_tuple_init(int64_t n, int64_t* init_arr) {
+    Block* tuple = (Block*)create_tuple(n);
+
+    for (int i = 0; i < n; i++) {
+        tuple->elems[i] = init_arr[i];
+    }
+
+    return (value)tuple;
 }
 
 value field(value val, int64_t index) {
@@ -274,52 +286,43 @@ Closure* copy_closure(const Closure* src) {
 static value rv_call(void* fn, value* argv, int64_t n) {
     int64_t spill = (n > RV_GP_ARGS) ? (n - RV_GP_ARGS) : 0;
     size_t spill_bytes = (size_t)spill * WORD_SZ;
-    value* spill_ptr = (spill > 0) ? argv + RV_GP_ARGS : NULL;
+    size_t align_adj = (spill_bytes + 7) & ~7;
 
     value ret;
-    asm volatile(
-        "mv   t0, %[sz]\n"
-        "sub  sp, sp, t0\n"
-
-        "beqz %[cnt], 2f\n"
-        "mv   t1, sp\n"
-        "mv   t2, %[spill]\n"
-        "mv   t3, %[cnt]\n"
-        "li   t4, 0\n"
+    __asm__ volatile(
+        "mv t6, %[fn]\n"
+        "sub sp, sp, %[adj]\n"
+        "mv t0, sp\n"
+        "addi t1, %[argv], 64\n"
+        "mv t2, %[spill]\n"
+        "li t3, 0\n"
         "1:\n"
-        "beq  t4, t3, 2f\n"
-        "slli t5, t4, 3\n"
-        "add  t6, t2, t5\n"
-        "ld   t0, 0(t6)\n"
-        "sd   t0, 0(t1)\n"
+        "beq t3, t2, 2f\n"
+        "ld t4, 0(t1)\n"
+        "sd t4, 0(t0)\n"
         "addi t1, t1, 8\n"
-        "addi t4, t4, 1\n"
-        "j    1b\n"
+        "addi t0, t0, 8\n"
+        "addi t3, t3, 1\n"
+        "j 1b\n"
         "2:\n"
 
-        "mv   a0, %[a0]\n"
-        "mv   a1, %[a1]\n"
-        "mv   a2, %[a2]\n"
-        "mv   a3, %[a3]\n"
-        "mv   a4, %[a4]\n"
-        "mv   a5, %[a5]\n"
-        "mv   a6, %[a6]\n"
-        "mv   a7, %[a7]\n"
+        "ld a0, 0(%[argv])\n"
+        "ld a1, 8(%[argv])\n"
+        "ld a2, 16(%[argv])\n"
+        "ld a3, 24(%[argv])\n"
+        "ld a4, 32(%[argv])\n"
+        "ld a5, 40(%[argv])\n"
+        "ld a6, 48(%[argv])\n"
+        "ld a7, 56(%[argv])\n"
 
-        "mv   t6, %[fn]\n"
-        "jalr ra, t6, 0\n"
+        "jalr ra, t6\n"
 
-        "mv   t0, %[sz]\n"
-        "add  sp, sp, t0\n"
+        "add sp, sp, %[adj]\n"
 
-        "mv   %[ret], a0\n"
-        : [ret] "=r"(ret)
-        : [fn] "r"(fn), [a0] "r"((n > 0) ? argv[0] : 0), [a1] "r"((n > 1) ? argv[1] : 0),
-          [a2] "r"((n > 2) ? argv[2] : 0), [a3] "r"((n > 3) ? argv[3] : 0),
-          [a4] "r"((n > 4) ? argv[4] : 0), [a5] "r"((n > 5) ? argv[5] : 0),
-          [a6] "r"((n > 6) ? argv[6] : 0), [a7] "r"((n > 7) ? argv[7] : 0), [spill] "r"(spill_ptr),
-          [cnt] "r"(spill), [sz] "r"(spill_bytes)
-        : "t0", "t1", "t2", "t3", "t4", "t5", "t6", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7",
+        "mv %0, a0\n"
+        : "=r"(ret)
+        : [fn] "r"(fn), [argv] "r"(argv), [spill] "r"(spill), [adj] "r"(align_adj)
+        : "t0", "t1", "t2", "t3", "t4", "t6", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "ra",
           "memory");
     return ret;
 }
@@ -344,7 +347,9 @@ value apply1(Closure* f, value arg) {
         return rv_call(f->code, argv, n);
     }
 
-    panic("apply1: too many arguments");
+    char msg[100];
+    sprintf(msg, "apply1: too many arguments, should be: %ld, arg is: %ld", n, arg);
+    panic(msg);
     __builtin_unreachable();
 }
 

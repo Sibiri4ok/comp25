@@ -148,6 +148,7 @@ let rec closure_expr toplvl_set env expr =
     in
     let free_vars = free_vars_in fun_bound_vars body in
     let captured_vars = SSet.diff free_vars toplvl_set in
+    (* let captured_vars = SSet.filter (fun v -> not (List.mem v std_lib_names)) free_vars in *)
     let captured_vars_list = SSet.elements captured_vars in
     let new_pats_for_capture = List.map (fun v -> Pat_var v) captured_vars_list in
     let saturated_patterns = new_pats_for_capture @ patterns in
@@ -209,6 +210,9 @@ and transform_bindings toplvl_set env rec_flag bindings =
       in
       let free_vars = free_vars_in bound_for_body body in
       let captured_vars = SSet.diff free_vars toplvl_set in
+      (* let captured_vars =
+        SSet.filter (fun v -> not (List.mem v std_lib_names)) free_vars
+      in *)
       let captured_vars_list = SSet.elements captured_vars in
       let new_pats_for_capture = List.map (fun v -> Pat_var v) captured_vars_list in
       let saturated_patterns = new_pats_for_capture @ patterns in
@@ -278,7 +282,6 @@ let closure_structure_item_result toplvl_set = function
     (match new_bindings with
      | [] -> Error Empty_toplevel_let
      | hd :: tl -> Ok (Str_value (rec_flag, (hd, tl)), new_toplvl_set))
-  | Str_adt _ as item -> Ok (item, toplvl_set)
 ;;
 
 let closure_structure_item toplvl_set item =

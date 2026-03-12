@@ -12,7 +12,27 @@ module AST = struct
   type t =
     | Const of (int[@gen QCheck.Gen.return 1])
     | Add of t * t
-  [@@deriving qcheck, show { with_path = false }]
+  [@@deriving show { with_path = false }]
+
+  let rec gen_sized n =
+    match n with
+    | 0 -> QCheck.Gen.map (fun gen0 -> Const gen0) (QCheck.Gen.return 1)
+    | _ ->
+      QCheck.Gen.oneof_weighted
+        [ 1, QCheck.Gen.map (fun gen0 -> Const gen0) (QCheck.Gen.return 1)
+        ; ( 1
+          , QCheck.Gen.map
+              (fun (gen0, gen1) -> Add (gen0, gen1))
+              (QCheck.Gen.pair (gen_sized (n / 2)) (gen_sized (n / 2))) )
+        ]
+  ;;
+
+  let _ = gen_sized
+  let gen = QCheck.Gen.sized gen_sized
+  let _ = gen
+  let arb_sized n = QCheck.make (gen_sized n)
+  let _ = arb_sized
+  let arb = QCheck.make gen
 end
 
 module PP = struct

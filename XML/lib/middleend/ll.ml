@@ -43,18 +43,13 @@ let occurs_im x = function
 ;;
 
 let rec escapes_comp x = function
-  | Comp_imm i -> occurs_im x i
-  | Comp_binop (_op, a, b) -> occurs_im x a || occurs_im x b
-  | Comp_app (f, args) ->
-    List.exists (occurs_im x) args
-    ||
-      (match f with
-      | Imm_ident y when String.equal y x -> false
-      | _ -> occurs_im x f)
-  | Comp_branch (c, t, e) -> occurs_im x c || escapes_anf x t || escapes_anf x e
-  | Comp_func (_ps, body) -> SSet.mem x (fv_anf body)
-  | Comp_tuple is | Comp_alloc is -> List.exists (occurs_im x) is
-  | Comp_load (addr, _off) -> occurs_im x addr
+  | Comp_func (ps, body) -> (not (List.mem x ps)) && SSet.mem x (fv_anf body)
+  | Comp_branch (_c, t, e) -> escapes_anf x t || escapes_anf x e
+  | Comp_app (_, _)
+  | Comp_binop (_, _, _)
+  | Comp_tuple _ | Comp_alloc _
+  | Comp_load (_, _)
+  | Comp_imm _ -> false
 
 and escapes_anf x = function
   | Anf_comp_expr ce -> escapes_comp x ce
@@ -104,7 +99,15 @@ let rec lift_anf (env : ctx) (n : supply) (e : anf_expr)
              (Nonrecursive, lifted_name, Anf_comp_expr (Comp_func (fvs @ ps, fbody')))
          in
          let (body', defs_e2), n3 = lift_anf env_body n2 body in
-         (body', defs_body @ (def_item :: defs_e2)), n3)
+         (* (body', defs_body @ (def_item :: defs_e2)), n3 *)
+         let new_body =
+           if SSet.mem x (fv_anf body')
+           then
+             (* create a closure with old name *)
+             Anf_let (Nonrecursive, x, Comp_imm (Imm_ident lifted_name), body')
+           else body'
+         in
+         (new_body, defs_body @ (def_item :: defs_e2)), n3)
      | Comp_imm (Imm_ident y) ->
        (match SMap.find_opt y env with
         | Some (lf, fvs) ->

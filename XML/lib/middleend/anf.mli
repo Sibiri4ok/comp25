@@ -32,7 +32,7 @@ type astructure_item =
   | Anf_str_eval of anf_expr
   | Anf_str_value of rec_flag * ident * anf_expr
 
-type aprogram = astructure_item list
+type aprogram = astructure_item list [@@deriving show { with_path = false }]
 
 type anf_error =
   [ `Only_simple_var_params

@@ -38,38 +38,148 @@ let pprint_constant fmt =
   | Const_string s -> fprintf fmt "%S" s
 ;;
 
-let rec pprint_type fmt =
+let rearr_typvars typ =
+  let open Base in
+  let open TypeExpr in
+  let var_counter = ref 0 in
+  let rec rename t var_map =
+    match t with
+    | Type_arrow (t1, t2) ->
+      let t1', map1 = rename t1 var_map in
+      let t2', map2 = rename t2 map1 in
+      Type_arrow (t1', t2'), map2
+    | Type_tuple (t1, t2, tl) ->
+      let t1', map1 = rename t1 var_map in
+      let t2', map2 = rename t2 map1 in
+      let ts = tl in
+      List.fold_left ts ~init:([], map2) ~f:(fun (acc_ts, acc_map) t_elem ->
+        let t_elem', new_map = rename t_elem acc_map in
+        t_elem' :: acc_ts, new_map)
+      |> fun (rev_ts, final_map) -> Type_tuple (t1', t2', List.rev rev_ts), final_map
+    | Type_var tv_ref ->
+      (match !tv_ref with
+       | Unbound _ -> Type_var tv_ref, var_map
+       | Link linked_t -> rename linked_t var_map)
+    | Quant_type_var id ->
+      (match Map.find var_map id with
+       | Some new_id -> Quant_type_var new_id, var_map
+       | None ->
+         let idx = !var_counter in
+         var_counter := idx + 1;
+         let new_id =
+           if idx < 26
+           then String.make 1 (Char.of_int_exn (97 + idx))
+           else (
+             let prefix_count = (idx / 26) - 1 in
+             let suffix_idx = Int.rem idx 26 in
+             "'"
+             ^ String.make (prefix_count + 1) (Char.of_int_exn (97 + (idx / 26) - 1))
+             ^ String.make 1 (Char.of_int_exn (97 + suffix_idx)))
+         in
+         let new_map = Map.set var_map ~key:id ~data:new_id in
+         Quant_type_var new_id, new_map)
+    | Type_construct (id, args) ->
+      List.fold_left args ~init:([], var_map) ~f:(fun (acc_args, acc_map) arg ->
+        let arg', new_map = rename arg acc_map in
+        arg' :: acc_args, new_map)
+      |> fun (rev_args, final_map) -> Type_construct (id, List.rev rev_args), final_map
+  in
+  fst (rename typ (Map.empty (module String)))
+;;
+
+let rec pprint_type_tuple fmt =
+  let open Stdlib.Format in
   let open TypeExpr in
   function
-  | Type_arrow (tye1, tye2) -> fprintf fmt "(%a -> %a)" pprint_type tye1 pprint_type tye2
-  | Type_var id -> fprintf fmt "'%s" id
-  | Type_tuple (tye1, tye2, tyel) ->
+  | [] -> ()
+  | [ h ] ->
+    (match h with
+     | Type_arrow (_, _) -> fprintf fmt "(%a)" pprint_type h
+     | _ -> fprintf fmt "%a" pprint_type h)
+  | h :: tl ->
+    (match h with
+     | Type_arrow (_, _) -> fprintf fmt "(%a) * %a" pprint_type h pprint_type_tuple tl
+     | _ -> fprintf fmt "%a * %a" pprint_type h pprint_type_tuple tl)
+
+and pprint_type_list_with_parens fmt ty_list =
+  let open Stdlib.Format in
+  let rec print_types fmt = function
+    | [] -> ()
+    | [ ty ] -> pprint_type_with_parens_if_tuple fmt ty
+    | ty :: rest ->
+      fprintf fmt "%a %a" pprint_type_with_parens_if_tuple ty print_types rest
+  in
+  print_types fmt ty_list
+
+and pprint_type fmt typ =
+  let open TypeExpr in
+  let rec is_arrow = function
+    | Type_arrow _ -> true
+    | Type_var { contents = Link t } -> is_arrow t
+    | _ -> false
+  in
+  let rec is_tuple = function
+    | Type_tuple _ -> true
+    | Type_var { contents = Link t } -> is_tuple t
+    | _ -> false
+  in
+  let open Stdlib.Format in
+  match typ with
+  | Type_arrow (t1, t2) when is_arrow t1 ->
+    fprintf fmt "(%a) -> %a" pprint_type t1 pprint_type t2
+  | Type_arrow (t1, t2) -> fprintf fmt "%a -> %a" pprint_type t1 pprint_type t2
+  | Type_tuple (t1, t2, tl) ->
     fprintf
       fmt
-      "(%s)"
-      (String.concat
+      "%s"
+      (Base.String.concat
          ~sep:" * "
-         (List.map (tye1 :: tye2 :: tyel) ~f:(fun t -> asprintf "%a" pprint_type t)))
-  | Type_construct (id, tyel) ->
-    let tyel_str =
-      String.concat
-        ~sep:", "
-        (List.map tyel ~f:(fun t ->
-           match t with
-           | Type_var tye -> asprintf "'%s" tye
-           | Type_tuple (t1, t2, rest) ->
-             let tuple_types = t1 :: t2 :: rest in
-             let tuple_str = String.concat ~sep:" * " (List.map tuple_types ~f:show) in
-             "(" ^ tuple_str ^ ")"
-           | _ -> show t))
-    in
-    let tyel_strf =
-      match List.length tyel with
-      | 0 -> ""
-      | 1 -> tyel_str ^ " "
-      | _ -> "(" ^ tyel_str ^ ") "
-    in
-    fprintf fmt "%s%s" tyel_strf id
+         (List.map
+            ~f:(fun t ->
+              if is_tuple t || is_arrow t
+              then asprintf "(%a)" pprint_type t
+              else asprintf "%a" pprint_type t)
+            (t1 :: t2 :: tl)))
+  | Type_var { contents = Unbound (id, _) } -> fprintf fmt "'%s" id
+  | Type_var { contents = Link t } -> pprint_type fmt t
+  | Quant_type_var id -> fprintf fmt "'%s" id
+  | Type_construct (name, []) -> fprintf fmt "%s" name
+  | Type_construct (name, ty_list) ->
+    fprintf fmt "%a %s" pprint_type_list_with_parens ty_list name
+
+and pprint_type_with_parens_if_tuple fmt ty =
+  let open Stdlib.Format in
+  match ty with
+  | Type_tuple _ -> fprintf fmt "(%a)" pprint_type ty
+  | _ -> pprint_type fmt ty
+;;
+
+let filter_env (env : (ident * TypeExpr.t) list) (names : ident list) =
+  List.fold_left
+    ~f:(fun acc name ->
+      match Stdlib.List.assoc_opt name env, Stdlib.List.assoc_opt name acc with
+      | Some ty, None -> (name, ty) :: acc
+      | _ -> acc)
+    ~init:[]
+    names
+;;
+
+let pprint_env env names =
+  let open Stdlib.Format in
+  let new_env = filter_env env names in
+  List.iter
+    ~f:(fun (key, typ) ->
+      if
+        String.length key > 0
+        && Stdlib.Char.code key.[0] >= 65
+        && Stdlib.Char.code key.[0] <= 90
+      then ()
+      else if String.equal key "-"
+      then printf "%s : %a\n" key pprint_type typ
+      else (
+        let typ = rearr_typvars typ in
+        printf "val %s : %a\n" key pprint_type typ))
+    new_env
 ;;
 
 let rec pprint_pattern fmt =
@@ -256,29 +366,6 @@ let pprint_structure_item fmt n =
              asprintf "%a" (fun fmt -> pprint_value_binding fmt n) vb))
     in
     fprintf fmt "let %a%s;;\n\n" pprint_rec rec_flag bindings_str
-  | Str_adt (tparam, id, (constr1, constrl)) ->
-    let tparam_ident_str =
-      match List.length tparam with
-      | 0 -> ""
-      | 1 -> asprintf "'%s " (List.hd_exn tparam)
-      | _ ->
-        "('"
-        ^ String.concat ~sep:", '" (List.map tparam ~f:(fun param -> asprintf "%s" param))
-        ^ ") "
-    in
-    let var_t_str =
-      match constr1 :: constrl with
-      | [] -> ""
-      | _ ->
-        "  | "
-        ^ String.concat
-            ~sep:"\n  | "
-            (List.map (constr1 :: constrl) ~f:(fun (id, typ) ->
-               match typ with
-               | Some t -> asprintf "%s of %a" id pprint_type t
-               | None -> asprintf "%s" id))
-    in
-    fprintf fmt "type %s%s =\n%s\n;;\n\n" tparam_ident_str id var_t_str
 ;;
 
 let pprint_program fmt = List.iter ~f:(pprint_structure_item fmt 0)
