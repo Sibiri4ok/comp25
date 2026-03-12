@@ -70,6 +70,15 @@ entry:
   ret ptr inttoptr (i64 1 to ptr)
 }
 
+define ptr @print_int_closure_wrapper(ptr %args) {
+entry:
+  %arg0 = getelementptr ptr, ptr %args, i32 0
+  %load0 = load ptr, ptr %arg0, align 8
+  %arg = ptrtoint ptr %load0 to i64
+  call void @print_int(i64 %arg)
+  ret ptr inttoptr (i64 1 to ptr)
+}
+
 attributes #0 = { nocallback nofree nosync nounwind willreturn memory(none) }
 
 |}]
@@ -121,6 +130,15 @@ entry:
   ret ptr inttoptr (i64 1 to ptr)
 }
 
+define ptr @print_int_closure_wrapper(ptr %args) {
+entry:
+  %arg0 = getelementptr ptr, ptr %args, i32 0
+  %load0 = load ptr, ptr %arg0, align 8
+  %arg = ptrtoint ptr %load0 to i64
+  call void @print_int(i64 %arg)
+  ret ptr inttoptr (i64 1 to ptr)
+}
+
 attributes #0 = { nocallback nofree nosync nounwind willreturn memory(none) }
 
 |}]
@@ -164,6 +182,15 @@ declare ptr @llvm.frameaddress.p0(i32 immarg) #0
 
 define ptr @main() {
 entry:
+  ret ptr inttoptr (i64 1 to ptr)
+}
+
+define ptr @print_int_closure_wrapper(ptr %args) {
+entry:
+  %arg0 = getelementptr ptr, ptr %args, i32 0
+  %load0 = load ptr, ptr %arg0, align 8
+  %arg = ptrtoint ptr %load0 to i64
+  call void @print_int(i64 %arg)
   ret ptr inttoptr (i64 1 to ptr)
 }
 
@@ -213,6 +240,15 @@ entry:
   ret ptr inttoptr (i64 113 to ptr)
 }
 
+define ptr @print_int_closure_wrapper(ptr %args) {
+entry:
+  %arg0 = getelementptr ptr, ptr %args, i32 0
+  %load0 = load ptr, ptr %arg0, align 8
+  %arg = ptrtoint ptr %load0 to i64
+  call void @print_int(i64 %arg)
+  ret ptr inttoptr (i64 1 to ptr)
+}
+
 attributes #0 = { nocallback nofree nosync nounwind willreturn memory(none) }
 
 |}]
@@ -226,60 +262,77 @@ let%expect_test "double_fn" =
   |};
   [%expect
     {|
-    ; ModuleID = 'EML'
-    source_filename = "EML"
+; ModuleID = 'EML'
+source_filename = "EML"
 
-    declare ptr @eml_applyN(ptr, i64, ptr)
+declare ptr @eml_applyN(ptr, i64, ptr)
 
-    declare ptr @create_tuple(i64, ptr)
+declare ptr @create_tuple(i64, ptr)
 
-    declare ptr @alloc_closure(ptr, i64)
+declare ptr @alloc_closure(ptr, i64)
 
-    declare ptr @field(ptr, i64)
+declare ptr @field(ptr, i64)
 
-    declare ptr @llvm_call_indirect(ptr, ptr, i64)
+declare ptr @llvm_call_indirect(ptr, ptr, i64)
 
-    declare void @print_int(i64)
+declare void @print_int(i64)
 
-    declare void @init_gc()
+declare void @init_gc()
 
-    declare void @destroy_gc()
+declare void @destroy_gc()
 
-    declare void @set_ptr_stack(ptr)
+declare void @set_ptr_stack(ptr)
 
-    declare i64 @get_heap_start()
+declare i64 @get_heap_start()
 
-    declare i64 @get_heap_final()
+declare i64 @get_heap_final()
 
-    declare ptr @collect()
+declare ptr @collect()
 
-    declare ptr @print_gc_status()
+declare ptr @print_gc_status()
 
-    ; Function Attrs: nocallback nofree nosync nounwind willreturn memory(none)
-    declare ptr @llvm.frameaddress.p0(i32 immarg) #0
+; Function Attrs: nocallback nofree nosync nounwind willreturn memory(none)
+declare ptr @llvm.frameaddress.p0(i32 immarg) #0
 
-    define ptr @double(ptr %x) {
-    entry:
-      %raw_int = ptrtoint ptr %x to i64
-      %minus1 = sub i64 %raw_int, 1
-      %untagged = sdiv i64 %minus1, 2
-      %raw_int1 = ptrtoint ptr %x to i64
-      %minus12 = sub i64 %raw_int1, 1
-      %untagged3 = sdiv i64 %minus12, 2
-      %add = add i64 %untagged, %untagged3
-      %twice = mul i64 %add, 2
-      %tagged = add i64 %twice, 1
-      %result_int = inttoptr i64 %tagged to ptr
-      ret ptr %result_int
-    }
+define ptr @double(ptr %x) {
+entry:
+  %raw_int = ptrtoint ptr %x to i64
+  %minus1 = sub i64 %raw_int, 1
+  %untagged = sdiv i64 %minus1, 2
+  %raw_int1 = ptrtoint ptr %x to i64
+  %minus12 = sub i64 %raw_int1, 1
+  %untagged3 = sdiv i64 %minus12, 2
+  %add = add i64 %untagged, %untagged3
+  %twice = mul i64 %add, 2
+  %tagged = add i64 %twice, 1
+  %result_int = inttoptr i64 %tagged to ptr
+  ret ptr %result_int
+}
 
-    define ptr @main() {
-    entry:
-      %direct_double = call ptr @double(ptr inttoptr (i64 43 to ptr))
-      ret ptr %direct_double
-    }
+define ptr @main() {
+entry:
+  %direct_double = call ptr @double(ptr inttoptr (i64 43 to ptr))
+  ret ptr %direct_double
+}
 
-    attributes #0 = { nocallback nofree nosync nounwind willreturn memory(none) } |}]
+define ptr @print_int_closure_wrapper(ptr %args) {
+entry:
+  %arg0 = getelementptr ptr, ptr %args, i32 0
+  %load0 = load ptr, ptr %arg0, align 8
+  %arg = ptrtoint ptr %load0 to i64
+  call void @print_int(i64 %arg)
+  ret ptr inttoptr (i64 1 to ptr)
+}
+
+define ptr @double_closure_wrapper(ptr %args) {
+entry:
+  %arg0 = getelementptr ptr, ptr %args, i32 0
+  %load0 = load ptr, ptr %arg0, align 8
+  %call = call ptr @double(ptr %load0)
+  ret ptr %call
+}
+
+attributes #0 = { nocallback nofree nosync nounwind willreturn memory(none) } |}]
 ;;
 
 let%expect_test "abs_fn" =
@@ -356,6 +409,23 @@ let%expect_test "abs_fn" =
     entry:
       %direct_abs = call ptr @abs(ptr inttoptr (i64 15 to ptr))
       ret ptr %direct_abs
+    }
+
+    define ptr @print_int_closure_wrapper(ptr %args) {
+    entry:
+      %arg0 = getelementptr ptr, ptr %args, i32 0
+      %load0 = load ptr, ptr %arg0, align 8
+      %arg = ptrtoint ptr %load0 to i64
+      call void @print_int(i64 %arg)
+      ret ptr inttoptr (i64 1 to ptr)
+    }
+
+    define ptr @abs_closure_wrapper(ptr %args) {
+    entry:
+      %arg0 = getelementptr ptr, ptr %args, i32 0
+      %load0 = load ptr, ptr %arg0, align 8
+      %call = call ptr @abs(ptr %load0)
+      ret ptr %call
     }
 
     attributes #0 = { nocallback nofree nosync nounwind willreturn memory(none) } |}]
@@ -438,6 +508,33 @@ let%expect_test "nested_calls" =
     entry:
       %direct_sum_of_squares = call ptr @sum_of_squares(ptr inttoptr (i64 7 to ptr), ptr inttoptr (i64 9 to ptr))
       ret ptr %direct_sum_of_squares
+    }
+
+    define ptr @print_int_closure_wrapper(ptr %args) {
+    entry:
+      %arg0 = getelementptr ptr, ptr %args, i32 0
+      %load0 = load ptr, ptr %arg0, align 8
+      %arg = ptrtoint ptr %load0 to i64
+      call void @print_int(i64 %arg)
+      ret ptr inttoptr (i64 1 to ptr)
+    }
+
+    define ptr @sq_closure_wrapper(ptr %args) {
+    entry:
+      %arg0 = getelementptr ptr, ptr %args, i32 0
+      %load0 = load ptr, ptr %arg0, align 8
+      %call = call ptr @sq(ptr %load0)
+      ret ptr %call
+    }
+
+    define ptr @sum_of_squares_closure_wrapper(ptr %args) {
+    entry:
+      %arg0 = getelementptr ptr, ptr %args, i32 0
+      %load0 = load ptr, ptr %arg0, align 8
+      %arg1 = getelementptr ptr, ptr %args, i32 1
+      %load1 = load ptr, ptr %arg1, align 8
+      %call = call ptr @sum_of_squares(ptr %load0, ptr %load1)
+      ret ptr %call
     }
 
     attributes #0 = { nocallback nofree nosync nounwind willreturn memory(none) } |}]
@@ -538,6 +635,23 @@ let%expect_test "fibonacci" =
       ret ptr %direct_fib
     }
 
+    define ptr @print_int_closure_wrapper(ptr %args) {
+    entry:
+      %arg0 = getelementptr ptr, ptr %args, i32 0
+      %load0 = load ptr, ptr %arg0, align 8
+      %arg = ptrtoint ptr %load0 to i64
+      call void @print_int(i64 %arg)
+      ret ptr inttoptr (i64 1 to ptr)
+    }
+
+    define ptr @fib_closure_wrapper(ptr %args) {
+    entry:
+      %arg0 = getelementptr ptr, ptr %args, i32 0
+      %load0 = load ptr, ptr %arg0, align 8
+      %call = call ptr @fib(ptr %load0)
+      ret ptr %call
+    }
+
     attributes #0 = { nocallback nofree nosync nounwind willreturn memory(none) } |}]
 ;;
 
@@ -596,6 +710,23 @@ let%expect_test "is_positive" =
     entry:
       %direct_is_positive = call ptr @is_positive(ptr inttoptr (i64 85 to ptr))
       ret ptr %direct_is_positive
+    }
+
+    define ptr @print_int_closure_wrapper(ptr %args) {
+    entry:
+      %arg0 = getelementptr ptr, ptr %args, i32 0
+      %load0 = load ptr, ptr %arg0, align 8
+      %arg = ptrtoint ptr %load0 to i64
+      call void @print_int(i64 %arg)
+      ret ptr inttoptr (i64 1 to ptr)
+    }
+
+    define ptr @is_positive_closure_wrapper(ptr %args) {
+    entry:
+      %arg0 = getelementptr ptr, ptr %args, i32 0
+      %load0 = load ptr, ptr %arg0, align 8
+      %call = call ptr @is_positive(ptr %load0)
+      ret ptr %call
     }
 
     attributes #0 = { nocallback nofree nosync nounwind willreturn memory(none) } |}]
@@ -670,6 +801,27 @@ let%expect_test "mul3" =
     entry:
       %direct_mul3 = call ptr @mul3(ptr inttoptr (i64 5 to ptr), ptr inttoptr (i64 7 to ptr), ptr inttoptr (i64 9 to ptr))
       ret ptr %direct_mul3
+    }
+
+    define ptr @print_int_closure_wrapper(ptr %args) {
+    entry:
+      %arg0 = getelementptr ptr, ptr %args, i32 0
+      %load0 = load ptr, ptr %arg0, align 8
+      %arg = ptrtoint ptr %load0 to i64
+      call void @print_int(i64 %arg)
+      ret ptr inttoptr (i64 1 to ptr)
+    }
+
+    define ptr @mul3_closure_wrapper(ptr %args) {
+    entry:
+      %arg0 = getelementptr ptr, ptr %args, i32 0
+      %load0 = load ptr, ptr %arg0, align 8
+      %arg1 = getelementptr ptr, ptr %args, i32 1
+      %load1 = load ptr, ptr %arg1, align 8
+      %arg2 = getelementptr ptr, ptr %args, i32 2
+      %load2 = load ptr, ptr %arg2, align 8
+      %call = call ptr @mul3(ptr %load0, ptr %load1, ptr %load2)
+      ret ptr %call
     }
 
     attributes #0 = { nocallback nofree nosync nounwind willreturn memory(none) } |}]
@@ -784,6 +936,23 @@ let%expect_test "test1" =
       %ite_result4 = phi ptr [ inttoptr (i64 1 to ptr), %then_3 ], [ inttoptr (i64 3 to ptr), %else_3 ]
       %direct_large = call ptr @large(ptr %ite_result4)
       ret ptr %direct_large
+    }
+
+    define ptr @print_int_closure_wrapper(ptr %args) {
+    entry:
+      %arg0 = getelementptr ptr, ptr %args, i32 0
+      %load0 = load ptr, ptr %arg0, align 8
+      %arg = ptrtoint ptr %load0 to i64
+      call void @print_int(i64 %arg)
+      ret ptr inttoptr (i64 1 to ptr)
+    }
+
+    define ptr @large_closure_wrapper(ptr %args) {
+    entry:
+      %arg0 = getelementptr ptr, ptr %args, i32 0
+      %load0 = load ptr, ptr %arg0, align 8
+      %call = call ptr @large(ptr %load0)
+      ret ptr %call
     }
 
     attributes #0 = { nocallback nofree nosync nounwind willreturn memory(none) } |}]
@@ -902,7 +1071,7 @@ let%expect_test "codegen closure fn with 10 arg" =
 
     define ptr @main() {
     entry:
-      %boxed_alloc_closure = call ptr @alloc_closure(ptr @add, i64 7)
+      %boxed_alloc_closure = call ptr @alloc_closure(ptr @add_closure_wrapper, i64 7)
       br label %apply_step_0
 
     merge_0:                                          ; preds = %apply_step_3
@@ -979,6 +1148,35 @@ let%expect_test "codegen closure fn with 10 arg" =
       store ptr inttoptr (i64 3 to ptr), ptr %one_elem28, align 8
       %apply_step_129 = call ptr @eml_applyN(ptr %cur_126, i64 1, ptr %one_elem28)
       br label %merge_2
+    }
+
+    define ptr @print_int_closure_wrapper(ptr %args) {
+    entry:
+      %arg0 = getelementptr ptr, ptr %args, i32 0
+      %load0 = load ptr, ptr %arg0, align 8
+      %arg = ptrtoint ptr %load0 to i64
+      call void @print_int(i64 %arg)
+      ret ptr inttoptr (i64 1 to ptr)
+    }
+
+    define ptr @add_closure_wrapper(ptr %args) {
+    entry:
+      %arg0 = getelementptr ptr, ptr %args, i32 0
+      %load0 = load ptr, ptr %arg0, align 8
+      %arg1 = getelementptr ptr, ptr %args, i32 1
+      %load1 = load ptr, ptr %arg1, align 8
+      %arg2 = getelementptr ptr, ptr %args, i32 2
+      %load2 = load ptr, ptr %arg2, align 8
+      %arg3 = getelementptr ptr, ptr %args, i32 3
+      %load3 = load ptr, ptr %arg3, align 8
+      %arg4 = getelementptr ptr, ptr %args, i32 4
+      %load4 = load ptr, ptr %arg4, align 8
+      %arg5 = getelementptr ptr, ptr %args, i32 5
+      %load5 = load ptr, ptr %arg5, align 8
+      %arg6 = getelementptr ptr, ptr %args, i32 6
+      %load6 = load ptr, ptr %arg6, align 8
+      %call = call ptr @add(ptr %load0, ptr %load1, ptr %load2, ptr %load3, ptr %load4, ptr %load5, ptr %load6)
+      ret ptr %call
     }
 
     attributes #0 = { nocallback nofree nosync nounwind willreturn memory(none) } |}]

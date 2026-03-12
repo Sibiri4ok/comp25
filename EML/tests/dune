@@ -13,7 +13,7 @@
  (deps
   (file ../bin/EML.exe)
   (file Makefile)
-  (file ../lib/runtime/rv64_runtime.a)
+  (file ../lib/runtime/rv64_runtime.o)
   (source_tree additional_tests)
   (source_tree gc_tests)
   (source_tree many_tests)))
@@ -23,7 +23,7 @@
  (deps
   (file ../bin/EML.exe)
   (file Makefile)
-  (file ../lib/runtime/rv64_runtime.a)
+  (file ../lib/runtime/rv64_runtime.o)
   (source_tree gc_tests)
   (source_tree many_tests)))
 
@@ -32,7 +32,7 @@
  (deps
   (file ../bin/EML.exe)
   (file Makefile)
-  (file ../lib/runtime/rv64_runtime.a)
+  (file ../lib/runtime/rv64_runtime.o)
   (source_tree gc_tests)
   (source_tree many_tests)))
 
@@ -41,7 +41,7 @@
  (deps
   (file ../bin/EML.exe)
   (file Makefile)
-  (file ../lib/runtime/rv64_runtime.a)
+  (file ../lib/runtime/rv64_runtime.o)
   (source_tree gc_tests)
   (source_tree many_tests)))
 
@@ -51,6 +51,7 @@
  (applies_to llvm)
  (deps
   (file ../bin/EML.exe)
+  (file ../lib/runtime/llvm_runtime.o)
   (file Makefile)
   (source_tree additional_tests)
   (source_tree many_tests)))
