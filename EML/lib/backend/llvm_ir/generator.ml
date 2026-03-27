@@ -52,6 +52,77 @@ let predefined_init current_module =
     predefined_funcs
 ;;
 
+let with_wrapper state name (body : Llvm.llbuilder -> Llvm.llvalue -> unit) =
+  let open Llvm in
+  let wrapper_ty = function_type ptr_t [| ptr_t |] in
+  let wrapper_func = declare_function name wrapper_ty state.current_module in
+  let entry = append_block context "entry" wrapper_func in
+  let wb = builder context in
+  position_at_end entry wb;
+  let args_ptr = (params wrapper_func).(0) in
+  set_value_name "args" args_ptr;
+  body wb args_ptr;
+  { state with
+    value_env = Base.Map.set state.value_env ~key:name ~data:wrapper_func
+  ; type_env = Base.Map.set state.type_env ~key:name ~data:wrapper_ty
+  }
+;;
+
+let add_print_int_closure_wrapper =
+  let* state = get in
+  let open Llvm in
+  match lookup_function "print_int" state.current_module with
+  | None -> return ()
+  | Some print_int_func ->
+    put
+      (with_wrapper state "print_int_closure_wrapper" (fun wb args_ptr ->
+         let arg0 = build_gep ptr_t args_ptr [| const_int i32_t 0 |] "arg0" wb in
+         let i64_val = build_ptrtoint (build_load ptr_t arg0 "load0" wb) int_t "arg" wb in
+         ignore
+           (build_call
+              (function_type void_t [| int_t |])
+              print_int_func
+              [| i64_val |]
+              ""
+              wb);
+         ignore
+           (build_ret (build_inttoptr (const_int int_t (tag_int 0)) ptr_t "unit" wb) wb)))
+;;
+
+let build_closure_wrapper (func_layout : function_layout) =
+  let* state = get in
+  let n = List.length func_layout.params in
+  if n = 0
+  then return ()
+  else
+    let open Llvm in
+    match lookup_function func_layout.asm_name state.current_module with
+    | None -> fail ("closure_wrapper: missing " ^ func_layout.asm_name)
+    | Some real_func ->
+      let* real_ty =
+        match Base.Map.find state.type_env func_layout.asm_name with
+        | Some ty -> return ty
+        | None -> fail "closure_wrapper: missing function type"
+      in
+      let name = func_layout.asm_name ^ "_closure_wrapper" in
+      put
+        (with_wrapper state name (fun wb args_ptr ->
+           let loads =
+             List.init n (fun i ->
+               let gep =
+                 build_gep
+                   ptr_t
+                   args_ptr
+                   [| const_int i32_t i |]
+                   ("arg" ^ Int.to_string i)
+                   wb
+               in
+               build_load ptr_t gep ("load" ^ Int.to_string i) wb)
+           in
+           let res = build_call real_ty real_func (Array.of_list loads) "call" wb in
+           ignore (build_ret res wb)))
+;;
+
 let emit_void builder instr : (unit, string) Result.t =
   match emit builder instr with
   | _ -> Ok ()
@@ -224,10 +295,26 @@ and maybe_closure value arity_opt =
   match classify_value value with
   | ValueKind.Function ->
     let arity = Option.value arity_opt ~default:(Array.length (params value)) in
-    let* function_ptr =
-      with_optional_value (bitcast builder value ptr_t "func_ptr_cast")
+    let* code_ptr =
+      if arity > 0
+      then
+        let* state = get in
+        let name = value_name value in
+        let wrapper_name = name ^ "_closure_wrapper" in
+        match lookup_function wrapper_name state.current_module with
+        | Some wrapper -> return wrapper
+        | None ->
+          let* function_ptr =
+            with_optional_value (bitcast builder value ptr_t "func_ptr_cast")
+          in
+          return function_ptr
+      else
+        let* function_ptr =
+          with_optional_value (bitcast builder value ptr_t "func_ptr_cast")
+        in
+        return function_ptr
     in
-    gen_simple_type "alloc_closure" [| function_ptr; const_int int_t arity |]
+    gen_simple_type "alloc_closure" [| code_ptr; const_int int_t arity |]
   | _ -> return value
 ;;
 
@@ -635,6 +722,16 @@ let declare_function (func_layout : function_layout) state =
   }
 ;;
 
+let build_all_closure_wrappers (functions : function_layout list) =
+  let* () = add_print_int_closure_wrapper in
+  List.fold_left
+    (fun m f ->
+       let* () = m in
+       build_closure_wrapper f)
+    (return ())
+    functions
+;;
+
 let emit_gc_prologue =
   let* init_gc_func, init_gc_type = lookup_func_type "init_gc" in
   let* set_ptr_func, set_ptr_type = lookup_func_type "set_ptr_stack" in
@@ -742,7 +839,6 @@ let gen_program ~output_file ~enable_gc (program : anf_program) =
     ; current_func_index = 0
     }
   in
-  (* [functions] is never empty: synthetic main is added when missing. *)
   let entry_name =
     match List.find_opt (fun func -> func.func_name = "main") functions with
     | Some _ -> "main"
@@ -751,10 +847,17 @@ let gen_program ~output_file ~enable_gc (program : anf_program) =
   let state_after_declares =
     List.fold_left (fun state func -> declare_function func state) initial_state functions
   in
+  let state_after_wrappers =
+    match
+      Generator_state.run (build_all_closure_wrappers functions) state_after_declares
+    with
+    | Ok ((), s) -> s
+    | Error _ -> state_after_declares
+  in
   match
     Base.List.foldi
       functions
-      ~init:(Ok state_after_declares)
+      ~init:(Ok state_after_wrappers)
       ~f:(fun idx acc func_layout ->
         match acc with
         | Error _ -> acc
